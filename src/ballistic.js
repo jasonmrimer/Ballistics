@@ -72,7 +72,7 @@ function create() {
 //        var c = ballGroup.create(game.rnd.between(100, 770), game.rnd.between(0, 570), 'bullet');
          ballGroup.create(game.rnd.between(100, 770), game.rnd.between(0, 570), 'bullets', game.rnd.between(0, 5));
     }
-
+//
 //    for (i = 0; i < 20; i++)
 //    {
 ////        var c = ballGroup.create(game.rnd.between(100, 770), game.rnd.between(0, 570), 'bullet');
