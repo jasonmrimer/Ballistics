@@ -31,10 +31,16 @@ var numBallTypes;       // Start with a small number of ball types and increase 
 var fireRate = 100;
 var nextFire = 0;
 var levelThresholds = [100, 200, 300, 400, 500];
+var centerX;
+var centerY;
+
 
 function create() {
     "use strict";
     var spiralTestBall, i, pathBall;
+    centerX = game.world.centerX;
+    centerY = game.world.centerY;
+
     game.physics.startSystem(Phaser.Physics.ARCADE);
 
     game.stage.backgroundColor = '#313131';
@@ -116,7 +122,8 @@ function createSpiralPath() {
     //    point.x = 0, point.y = 200;
 
     //    path[0] = point;
-    recursiveSpiral(0, 200);
+    recursiveSpiral(200, centerY + 100);
+    recursiveSpiral(200, centerY - 100);
 
 //    var spiralRadiusMax = 400;
 //    var spiralNumber = 3;
@@ -170,7 +177,7 @@ function recursiveSpiral(x, y) {
     path[path.length] = point;
 //    console.log('point.x: ' + point.x + ' | point.y: ' + point.y + ' path length: ' + path.length);
 
-    if (x <= game.world.centerX) {
+    if (x <= game.world.width) {
         recursiveSpiral(x, y);
     }
 
@@ -218,6 +225,7 @@ function update() {
 */
 function collisionHandlerBullets(bulletCheck, ballCheck) {
     "use strict";
+    var bulletTheta, ballTheta;
     // Upon collision, add bullet to ball group between the two it wedges into
 
 
@@ -231,6 +239,7 @@ function collisionHandlerBullets(bulletCheck, ballCheck) {
         ballCheck.kill();
         bulletCheck.kill();
     } else {
+        // Squeeze bullet into path group - on hold to test theta calculation
         bulletCheck.spiralIndex = ballCheck.spiralIndex;
         bulletCheck.x = path[bulletCheck.spiralIndex].x;
         bulletCheck.y = path[bulletCheck.spiralIndex].y;
@@ -242,9 +251,44 @@ function collisionHandlerBullets(bulletCheck, ballCheck) {
 
     }
 
+    /*
+        Adds the bullet to the spiral path ball group base on whether it is to the right/left of the ball with which it collides.
+        Determine the quadrant of the ball first then compare the bullet's position on impact to figure if right/left and at what
+        index to add it to group.
+    */
+    // TODO use polar coordinates to determine radius and theta: if bullet theta is less than ball theta then bullet index is less than ball index
+    // *All y-values are inverse because of pixel coordinate system!!!
+
+    bulletTheta = Math.atan(-(bulletCheck.y - centerY) / (bulletCheck.x - centerX));
+    ballTheta = Math.atan(-(ballCheck.y - centerY) / (ballCheck.x - centerX));
+    // output for testing: test successful
+//    console.log('bulletQuotient: ' + (-(bulletCheck.y - centerY) / (bulletCheck.x - centerX)) + ' | ballQuotient: ' + (-(ballCheck.y - centerY) / (ballCheck.x - centerX)));
+//    console.log('bulletcoord: ' + bulletCheck.x + ', ' + bulletCheck.y + ' | ballcoord: ' + ballCheck.x + ', ' + ballCheck.y);
+
+    // Quadrant I (x > 0, y > 0): theta stays as calculated
+    if (ballCheck.x < centerX && ballCheck.y < centerY) {
+        // Quadrant II (x < 0, y > 0): add pi || 180 deg to theta
+        bulletTheta += Math.PI;
+        ballTheta += Math.PI;
+    } else if (ballCheck.x < centerX && ballCheck.y > centerY) {
+        // Quadrant III (x < 0, y < 0): add pi || 180 deg to theta
+        bulletTheta += Math.PI;
+        ballTheta += Math.PI;
+    } else if (ballCheck.x > centerX && ballCheck.y > centerY) {
+        // Quadrant IV (x > 0, y < 0): add pi || 360 deg to theta
+        bulletTheta += 2 * Math.PI;
+        ballTheta += 2 * Math.PI;
+    }
+
+    // output to test theta calculation: success
+//    console.log('bulletTheta: ' + bulletTheta + ' | ballTheta: ' + ballTheta);
+
     changeLevel();
 }
 
+/*
+    Handles after affects from a bullet collision enabling balls to shift and check whether any 3+ balls match
+*/
 function collisionHandlerSpiralBalls(ballA, ballB) {
     "use strict";
     // test if matching
