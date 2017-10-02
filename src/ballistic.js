@@ -18,11 +18,8 @@ function preload() {
 var sprite;
 var ballOnPath;
 var path = [];          // Holds all points on the spiral in numerical order until I figure out the equation
-//var point = {x: 0, y: 0};
-//var bullets;
 var bullet;
 var ballGroup;
-//var pathBalls;          // This are the balls along the spiral path
 var level = 1;          // Indicates the current level the player is on, increasing difficulty/points
 var speed;              // Velocity around the spiral increases proportional to the level
 var pointsPerBall = 25;      // Points scored per each clearing, increases proportional to level
@@ -80,7 +77,6 @@ function create() {
 
     // draw the balls along the path, leave room at end for pushing
     for (i = 0; i < (path.length / 2); i += bullet.width) {
-//        console.log(path[i].x + ', ' + path[i].y);
         pathBall = game.add.sprite(path[i].x, path[i].y, 'bullets', game.rnd.between(0, 5), ballGroup);
         pathBall.spiralIndex = i;
         pathBall.anchor.set(0.5);
@@ -90,16 +86,7 @@ function create() {
         pathBall.enableBody = true;
         pathBall.checkWorldBounds = true;
         pathBall.outOfBoundsKill = true;
-//        ballGroup.create(path[i].x, path[i].y, 'bullets', game.rnd.between(0, 5));
     }
-
-//
-//    for (i = 0; i < 20; i++)
-//    {
-////        var c = ballGroup.create(game.rnd.between(100, 770), game.rnd.between(0, 570), 'bullet');
-//         ballGroup.create(game.rnd.between(100, 770), game.rnd.between(0, 570), 'ballType01', 2);
-//    }
-
 
     movingSpiral();
 
@@ -107,24 +94,6 @@ function create() {
     ballGroup.physicsBodyType = Phaser.Physics.ARCADE;
     ballGroup.setAll('checkWorldBounds', true);
     ballGroup.setAll('outOfBoundsKill', true);
-
-
-    // Testing the Group indexing for adding balls and changing all indices
-    // Test proved group indices push all forward when addAt squeezes child into middle
-//    var testGroup = game.add.physicsGroup();
-//    var testBall1 = game.add.sprite(10, 10, 'bullets', game.rnd.between(0, 5), testGroup)
-//    testBall1.testIndex = 0;
-//    var testBall2 = game.add.sprite(50, 50, 'bullets', game.rnd.between(0, 5), testGroup)
-//    testBall2.testIndex = 1;
-//    var testBall3 = game.add.sprite(100, 100, 'bullets', game.rnd.between(0, 5))
-//    testBall3.testIndex = 2;
-//    console.log('groupIndex before: tb1 gi ' + testGroup.getIndex(testBall1) + ' , tb1 ti ' + testBall1.testIndex +
-//               ' tb2 gi ' + testGroup.getIndex(testBall2) + ' , tb2 ti ' + testBall2.testIndex +
-//               ' tb3 gi ' + testGroup.getIndex(testBall3) + ' , tb3 ti ' + testBall3.testIndex)
-//    testGroup.addAt(testBall3, 1, false);
-//    console.log('groupIndex after: tb1 gi ' + testGroup.getIndex(testBall1) + ' , tb1 ti ' + testBall1.testIndex +
-//               ' tb2 gi ' + testGroup.getIndex(testBall2) + ' , tb2 ti ' + testBall2.testIndex +
-//               ' tb3 gi ' + testGroup.getIndex(testBall3) + ' , tb3 ti ' + testBall3.testIndex)
 
 }
 
@@ -196,9 +165,7 @@ function recursiveSpiral(x, y) {
     x += 1;
     point.x = x;
     point.y = y;
-//    path[path.length] = point;
     path[path.length] = point;
-//    console.log('point.x: ' + point.x + ' | point.y: ' + point.y + ' path length: ' + path.length);
 
     if (x <= game.world.width) {
         recursiveSpiral(x, y);
@@ -286,12 +253,10 @@ function collisionHandlerBullets(bulletCheck, ballCheck) {
         Determine the quadrant of the ball first then compare the bullet's position on impact to figure if right/left and at what
         index to add it to group.
     */
-    // TODO use polar coordinates to determine radius and theta: if bullet theta is less than ball theta then bullet index is less than ball index
     // *All y-values are inverse because of pixel coordinate system!!!
 
     bulletTheta = Math.atan(-(bulletCheck.y - centerY) / (bulletCheck.x - centerX));
     ballTheta = Math.atan(-(ballCheck.y - centerY) / (ballCheck.x - centerX));
-
 
     // Quadrant I (x > 0, y > 0): theta stays as calculated
     if (ballCheck.x < centerX && ballCheck.y < centerY) {
@@ -314,27 +279,17 @@ function collisionHandlerBullets(bulletCheck, ballCheck) {
         // add bullet to the group before the ball check
         // exception for first position
         ballGroup.addAt(bulletCheck, ballGroup.getIndex(ballCheck), false);
-        //        if (ballGroup.getIndex(ballCheck) == 0) {
-//            ballGroup.addAt(bulletCheck, ballGroup.getIndex(ballCheck), false);
-//        } else {
-//            ballGroup.addAt(bulletCheck, ballGroup.getIndex(ballCheck) - 1, false);
-//        }
         bulletCheck.spiralIndex = ballGroup.getAt(ballGroup.getIndex(ballCheck)).spiralIndex;   // only give a spiral index when the left ball; otherwise, let the ball collision handler assign spiral indeces to the bullet when it is on the right
     // right
     } else {
         // add bullet to the group after the ball check
-
         ballGroup.addAt(bulletCheck, ballGroup.getIndex(ballCheck) + 1, false);
-        //        bulletCheck.spiralIndex = ballGroup.getIndex(bulletCheck).spiralIndex;
         bulletCheck.spiralIndex = ballGroup.getAt(ballGroup.getIndex(ballCheck)).spiralIndex;
     }
-//        ballGroup.getAt(ballGroup.getIndex(bulletCheck)).body.immovable = true;
     bulletCheck.body.moves = false;
     bulletCheck.x = path[bulletCheck.spiralIndex].x;
     bulletCheck.y = path[bulletCheck.spiralIndex].y;
     // TODO build function to recursively adjust all the spirals until each ball does not touch but has inserted the bullet
-    // Always put into the spiral ahead of a ball to allow addition to the end of the path
-//    recursiveSpiralInsert(bulletCheck, ballGroup.getAt(ballGroup.getIndex(bulletCheck) - 1));
     changeLevel();
 }
 
@@ -355,10 +310,7 @@ function collisionHandlerSpiralBalls(ballA, ballB) {
         leftBall = ballB;
         rightBall = ballA;
     }
-//    // left stays at its sprial index, right changes
-//    if (leftBall.spiralIndex == null) {
-//        leftBall.spiralIndex = rightBall.spiralIndex;
-//    }
+    // left stays at its sprial index, right changes
     // switch spiral index then increase spiral index (aka position on spiral) until the two balls stop colliding
     if (rightBall.spiralIndex === null) { // when not assigned because bullet is right of path ball
         rightBall.spiralIndex = leftBall.spiralIndex + 1;
@@ -371,24 +323,6 @@ function collisionHandlerSpiralBalls(ballA, ballB) {
     // set new position of bullet before sending to function (ought to add that to function...)
     rightBall.x = path[rightBall.spiralIndex].x;
     rightBall.y = path[rightBall.spiralIndex].y;
-
-//    // change the old ball until not overlapping
-//    while (Phaser.intersects(newBounds, oldBounds) && i < 200) {
-////           game.physics.arcade.overlap(newBall, oldBall) && i < 200) {
-//        // TODO test if out of range then end game
-//        newIndex = oldBall.spiralIndex + 1;
-//        if (newIndex < path.length) {
-//            oldBall.spiralIndex = newIndex;
-//            console.log('spiralIndex ' + oldBall.spiralIndex);
-//            oldBall.x = path[oldBall.spiralIndex].x;
-//            oldBall.y = path[oldBall.spiralIndex].y;
-//            console.log('newBall x, y: ' + newBall.x + ', ' + newBall.y + ' | oldBall x, y: ' + oldBall.x + ', ' + oldBall.y);
-//        } else {
-//            oldBall.kill();
-//            console.log('game over! ' + oldBall.spiralIndex);
-//        }
-//        i += 1;
-//    }
 
 //    if (ballA.frame === ballB.frame) {
 //        // if match then score
@@ -414,16 +348,7 @@ function collisionHandlerSpiralBalls(ballA, ballB) {
 
 function fire() {
     "use strict";
-//    if (game.time.now > nextFire && ballGroup.countDead() > 0) {
-//        nextFire = game.time.now + fireRate;
-//        var bullet = bullets.getFirstDead();
-//        var bullet = ballGroup.getFirstDead();
-//        ballGroup.create(sprite.x - 8, sprite.y - 8, 'bullet', 1);
-//        bullet.reset(sprite.x - 8, sprite.y - 8);
-
     game.physics.arcade.moveToPointer(bullet, 300);
-//    }
-
 }
 
 /*
@@ -446,7 +371,6 @@ function getCurrentLevel(currentScore) {
     "use strict";
 }
 
-
 /*
     Moves the spiral of balls inward toward the center.
 */
@@ -455,55 +379,9 @@ function moveBallPath() {
     ballOnPath.x += 2;
 }
 
-/*
-    Once a bullet is inserted into the spiral, it needs to shift all balls ahead of the bullet in the group to the right or
-    up the spiral path. Always takes the (newly inserted ball, ball to the right/ahead of that ball).
-*/
-//function recursiveSpiralInsert(newBall, oldBall) {
-//    "use strict";
-//    var newIndex, newBounds, oldBounds, i = 0;
-//    // switch spiral index then increase spiral index (aka position on spiral) until the two balls stop colliding
-//    newBall.spiralIndex = oldBall.spiralIndex;
-//
-//    // set new position of bullet before sending to function (ought to add that to function...)
-//    newBall.x = path[newBall.spiralIndex].x;
-//    newBall.y = path[newBall.spiralIndex].y;
-//    newBounds = newBall.getBounds();
-//    oldBounds = oldBall.getBounds();
-//    // change the old ball until not overlapping
-//    while (Phaser.intersects(newBounds, oldBounds) && i < 200) {
-////           game.physics.arcade.overlap(newBall, oldBall) && i < 200) {
-//        // TODO test if out of range then end game
-//        newIndex = oldBall.spiralIndex + 1;
-//        if (newIndex < path.length) {
-//            oldBall.spiralIndex = newIndex;
-//            console.log('spiralIndex ' + oldBall.spiralIndex);
-//            oldBall.x = path[oldBall.spiralIndex].x;
-//            oldBall.y = path[oldBall.spiralIndex].y;
-//            console.log('newBall x, y: ' + newBall.x + ', ' + newBall.y + ' | oldBall x, y: ' + oldBall.x + ', ' + oldBall.y);
-//        } else {
-//            oldBall.kill();
-//            console.log('game over! ' + oldBall.spiralIndex);
-//        }
-//        i += 1;
-//    }
-//
-//    if (ballGroup.getIndex(oldBall) < ballGroup.length && newIndex < path.length) {
-//        recursiveSpiralInsert(oldBall, ballGroup.getAt(ballGroup.getIndex(oldBall) + 1));
-//    }
-//    // TODO while (not colliding) increase spiral
-//}
-
 function render() {
     "use strict";
-//    game.debug.text('Active Bullets: ' + bullets.countLiving() + ' / ' + bullets.total, 32, 32);
     game.debug.text('Level: ' + level + ' | Score: ' + score + '| Next Level at: ' + levelThresholds[level - 1], 32, 64);
-//    game.debug.spriteInfo(sprite, 32, 450);
-    // Path Balls
-//    game.debug.geom(pathBalls, '#cfffff');
-//    game.debug.text('Diameter : ' + pathBalls.diameter, 50, 200);
-//    game.debug.text('Circumference : ' + pathBalls.circumference(), 50, 230);
-
 }
 
 
