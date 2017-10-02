@@ -92,7 +92,7 @@ function create() {
         pathBall.outOfBoundsKill = true;
 //        ballGroup.create(path[i].x, path[i].y, 'bullets', game.rnd.between(0, 5));
     }
-<<<<<<< HEAD
+
 //
 //    for (i = 0; i < 20; i++)
 //    {
@@ -100,9 +100,9 @@ function create() {
 //         ballGroup.create(game.rnd.between(100, 770), game.rnd.between(0, 570), 'ballType01', 2);
 //    }
 
-=======
+
     movingSpiral();
->>>>>>> MovingAfterCollision
+
     ballGroup.enableBody = true;
     ballGroup.physicsBodyType = Phaser.Physics.ARCADE;
     ballGroup.setAll('checkWorldBounds', true);
