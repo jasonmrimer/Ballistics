@@ -3,7 +3,7 @@
 // define all functions, avoid JLint errors
 var Phaser, preload, create, update, render, createSpiralPath, recursiveSpiral, movingSpiral,
     update, collisionHandlerBullets, collisionHandlerSpiralBalls, fire, changeLevel, getCurrentLevel,
-    moveBallPath, render, console, recursiveSpiralInsert;
+    moveBallPath, render, console, recursiveSpiralInsert, recursiveBallCheck, killBalls;
 
 var game = new Phaser.Game(800, 600, Phaser.CANVAS, 'phaser-example', { preload: preload, create: create, update: update, render: render });
 
@@ -298,10 +298,8 @@ function collisionHandlerBullets(bulletCheck, ballCheck) {
 */
 function collisionHandlerSpiralBalls(ballA, ballB) {
     "use strict";
-    var leftBall, rightBall, newRightIndex;
-    // test if matching
-//    ballGroup.add(bullet, 1);
-    console.log('ballA group index: ' + ballGroup.getIndex(ballA) + ' | ballB group index: ' + ballGroup.getIndex(ballB));
+    var leftBall, rightBall, newRightIndex, matches = [];
+
     // determine which ball is ahead of the other in the group to avoid switching positions
     if (ballGroup.getIndex(ballA) < ballGroup.getIndex(ballB)) {
         leftBall = ballA;
@@ -324,6 +322,15 @@ function collisionHandlerSpiralBalls(ballA, ballB) {
     rightBall.x = path[rightBall.spiralIndex].x;
     rightBall.y = path[rightBall.spiralIndex].y;
 
+    // check matches and kill 3-ball matches
+    matches = [];
+    matches.push(ballGroup.getIndex(leftBall));
+    recursiveBallCheck(leftBall, matches);
+    killBalls(matches);
+    matches = [];
+    matches.push(ballGroup.getIndex(rightBall));
+    recursiveBallCheck(rightBall, matches);
+    killBalls(matches);
 //    if (ballA.frame === ballB.frame) {
 //        // if match then score
 //        score += pointsPerBall;
@@ -365,6 +372,51 @@ function changeLevel() {
         // TODO increase speed
     }
 
+}
+
+/*
+    Check the balls to the "right" and "left" on the spiral and follow for any 3-ball matches then kill & score.
+*/
+function recursiveBallCheck(startBall, matchesArray) {
+    "use strict";
+    var startBallIndex = ballGroup.getIndex(startBall),
+        rightBallIndex = startBallIndex + 1,
+        leftBallIndex = startBallIndex + 1,
+        rightBall = ballGroup.getAt(rightBallIndex),
+        leftBall = ballGroup.getAt(leftBallIndex);
+    if (startBall.frame === rightBall.frame && matchesArray.indexOf(rightBall) < 0) {
+        matchesArray.push(ballGroup.getIndex(rightBall));
+        recursiveBallCheck(rightBall, matchesArray);
+    } else if (startBall.frame === leftBall.frame && matchesArray.indexOf(leftBall) < 0) {
+        matchesArray.push(ballGroup.getIndex(leftBall));
+        recursiveBallCheck(leftBall, matchesArray);
+    } else {
+        return;
+    }
+}
+
+/*
+    Takes array of indeces and kills the balls that filled it if more than 3
+*/
+function killBalls(matches) {
+    "use strict";
+    // remove duplicates and sort
+    var uniqueMatches = matches.filter(function (item, pos, self) {
+        return matches.indexOf(item) === pos;
+    }), /* sort */
+        sortedMatches = uniqueMatches.sort(function (a, b) {
+            return a - b;
+        }),
+        i;
+    // need to readjust the indeces to remove the correct balls once the indeces change from removing from ballgroup
+    if (sortedMatches.length >= 3) {
+        for (i = 0; i < sortedMatches.length; i += 1) {
+            ballGroup.getAt(sortedMatches[i] - i).kill();
+            ballGroup.remove(ballGroup.getAt(sortedMatches[i] - i));
+            score += pointsPerBall;
+            console.log('ballGroup size ' + ballGroup.length);
+        }
+    }
 }
 
 function getCurrentLevel(currentScore) {
