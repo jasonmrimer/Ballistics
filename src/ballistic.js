@@ -99,17 +99,13 @@ function create() {
 
 function createSpiralPath() {
     "use strict";
-    //    point.x = 0, point.y = 200;
-
-    //    path[0] = point;
-//    recursiveSpiral(200, centerY + 100);
-    var theta, radius = 200;
+    var theta, radius = 200, point = {    };
 
     for (theta = 0; theta <= 1000; theta += 1) {
-        var point = {    };
         point.x = centerX + (radius * Math.cos(2 * Math.PI * theta / 1000));
         point.y = centerY + (radius * Math.sin(2 * Math.PI * theta / 1000));
         path[path.length] = point;
+        point = [];
     }
 //    recursiveSpiral(200, centerY - 100);
 
@@ -289,6 +285,8 @@ function collisionHandlerBullets(bulletCheck, ballCheck) {
     bulletCheck.body.moves = false;
     bulletCheck.x = path[bulletCheck.spiralIndex].x;
     bulletCheck.y = path[bulletCheck.spiralIndex].y;
+    // add an identifier to the bullet that it is the center of recursive match checks, delete the identifier when complete
+    bulletCheck.canMatch = true;
     // TODO build function to recursively adjust all the spirals until each ball does not touch but has inserted the bullet
     changeLevel();
 }
@@ -331,6 +329,10 @@ function collisionHandlerSpiralBalls(ballA, ballB) {
     matches.push(ballGroup.getIndex(rightBall));
     recursiveBallCheck(rightBall, matches);
     killBalls(matches);
+
+    ballGroup.forEach(function (ball) {
+        ball.canCheck = false;
+    });
 //    if (ballA.frame === ballB.frame) {
 //        // if match then score
 //        score += pointsPerBall;
@@ -381,15 +383,84 @@ function recursiveBallCheck(startBall, matchesArray) {
     "use strict";
     var startBallIndex = ballGroup.getIndex(startBall),
         rightBallIndex = startBallIndex + 1,
-        leftBallIndex = startBallIndex + 1,
-        rightBall = ballGroup.getAt(rightBallIndex),
-        leftBall = ballGroup.getAt(leftBallIndex);
-    if (startBall.frame === rightBall.frame && matchesArray.indexOf(rightBall) < 0) {
-        matchesArray.push(ballGroup.getIndex(rightBall));
-        recursiveBallCheck(rightBall, matchesArray);
-    } else if (startBall.frame === leftBall.frame && matchesArray.indexOf(leftBall) < 0) {
-        matchesArray.push(ballGroup.getIndex(leftBall));
-        recursiveBallCheck(leftBall, matchesArray);
+        leftBallIndex = startBallIndex - 1,
+        rightBall,
+        leftBall;
+//    if (rightBallIndex > -1 &&
+//            rightBallIndex < ballGroup.length &&
+//            rightBall = ballGroup.getAt(rightBallIndex) &&
+//            startBall.canMatch &&
+//            startBall.frame === rightBall.frame &&
+//            matchesArray.indexOf(rightBall) < 0) {
+//
+//        rightBall.canMatch = true;
+//        matchesArray.push(ballGroup.getIndex(rightBall));
+//        recursiveBallCheck(rightBall, matchesArray);
+//    } else if (leftBallIndex > -1 &&
+//               leftBallIndex < ballGroup.length &&
+//               startBall.canMatch &&
+//               startBall.frame === leftBall.frame &&
+//               matchesArray.indexOf(leftBall) < 0) {
+//
+//        leftBall.canMatch = true;
+//        matchesArray.push(ballGroup.getIndex(leftBall));
+//        recursiveBallCheck(leftBall, matchesArray);
+//    } else {
+//        return;
+//    }
+//    // ensure right and left balls are within the group to avoid out of bounds errors
+//    if (rightBallIndex > -1 && rightBallIndex < ballGroup.length) {
+//        rightBall = ballGroup.getAt(rightBallIndex);
+//    }
+//    if (leftBallIndex > -1 && leftBallIndex < ballGroup.length) {
+//        leftBall = ballGroup.getAt(leftBallIndex);
+//    }
+//    console.log('r ' + matchesArray.indexOf(rightBall) + ' l ' + matchesArray.indexOf(rightBallIndex));
+//    // check flag to avoid matches that are not at the hitzone of the bullet
+//    if (startBall.canMatch) {
+//        // check matching ball type and not already included in matches
+//        if (startBall.frame === rightBall.frame && matchesArray.indexOf(rightBall) < 0) {
+//            rightBall.canMatch = true;
+//            matchesArray.push(rightBallIndex);
+//            recursiveBallCheck(rightBall, matchesArray);
+//        }
+//        if (startBall.frame === leftBall.frame && matchesArray.indexOf(leftBallIndex) < 0) {
+//            leftBall.canMatch = true;
+//            matchesArray.push(leftBallIndex);
+//            recursiveBallCheck(leftBall, matchesArray);
+//        }
+
+        // ensure right and left balls are within the group to avoid out of bounds errors
+
+
+
+    // check flag to avoid matches that are not at the hitzone of the bullet
+    if (startBall.canMatch) {
+        if (rightBallIndex > -1 && rightBallIndex < ballGroup.length) {
+            rightBall = ballGroup.getAt(rightBallIndex);
+
+            // check matching ball type and not already included in matches
+            if (startBall.frame === rightBall.frame && matchesArray.indexOf(rightBall) < 0) {
+                rightBall.canMatch = true;
+                matchesArray.push(rightBallIndex);
+                recursiveBallCheck(rightBall, matchesArray);
+            }
+        }
+
+        if (leftBallIndex > -1 && leftBallIndex < ballGroup.length) {
+            leftBall = ballGroup.getAt(leftBallIndex);
+
+            if (startBall.frame === leftBall.frame && matchesArray.indexOf(leftBallIndex) < 0) {
+                leftBall.canMatch = true;
+                matchesArray.push(leftBallIndex);
+                recursiveBallCheck(leftBall, matchesArray);
+            }
+        }
+//        else {
+//
+//            return;
+//        }
+
     } else {
         return;
     }
@@ -414,7 +485,6 @@ function killBalls(matches) {
             ballGroup.getAt(sortedMatches[i] - i).kill();
             ballGroup.remove(ballGroup.getAt(sortedMatches[i] - i));
             score += pointsPerBall;
-            console.log('ballGroup size ' + ballGroup.length);
         }
     }
 }
