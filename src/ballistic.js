@@ -17,14 +17,14 @@ function preload() {
 
 var sprite;
 var ballOnPath;
-var path = [];          // Holds all points on the spiral in numerical order until I figure out the equation
+var path = [];              // Holds all points on the spiral in numerical order until I figure out the equation
 var bullet;
 var ballGroup;
-var level = 1;          // Indicates the current level the player is on, increasing difficulty/points
-var speed;              // Velocity around the spiral increases proportional to the level
-var pointsPerBall = 25;      // Points scored per each clearing, increases proportional to level
+var level = 1;              // Indicates the current level the player is on, increasing difficulty/points
+var speed;                  // Velocity around the spiral increases proportional to the level
+var pointsPerBall = 25;     // Points scored per each clearing, increases proportional to level
 var score = 0;              // Total score - sum of pointsPerBall cleared
-var numBallTypes;       // Start with a small number of ball types and increase with level
+var numBallTypes;           // Start with a small number of ball types and increase with level
 var fireRate = 100;
 var nextFire = 0;
 var levelThresholds = [100, 200, 300, 400, 500];
@@ -217,32 +217,6 @@ function collisionHandlerBullets(bulletCheck, ballCheck) {
     bulletCheck.enableBody = true;
     bulletCheck.checkWorldBounds = true;
     bulletCheck.outOfBoundsKill = true;
-    // Upon collision, add bullet to ball group between the two it wedges into
-
-/*
-    // test if matching
-//    ballGroup.add(bullet, 1);
-//    console.log('ball.spiralIndex: ' + ballCheck.spiralIndex);
-
-    // TODO Remove and turn .kill function into a 3-ball match
-//    if (bulletCheck.frame === ballCheck.frame) {
-//        // if match then score
-//        score += pointsPerBall;
-//        ballCheck.kill();
-//        bulletCheck.kill();
-//    } else {
-//        // Squeeze bullet into path group - on hold to test theta calculation
-//        bulletCheck.spiralIndex = ballCheck.spiralIndex;
-//        bulletCheck.x = path[bulletCheck.spiralIndex].x;
-//        bulletCheck.y = path[bulletCheck.spiralIndex].y;
-//        if (ballCheck.spiralIndex < path.length - 1) {
-//            ballCheck.spiralIndex += 1;
-//            ballCheck.x = path[ballCheck.spiralIndex].x;
-//            ballCheck.y = path[ballCheck.spiralIndex].y;
-//        }
-//
-//    }
-*/
 
     /*
         Adds the bullet to the spiral path ball group base on whether it is to the right/left of the ball with which it collides.
@@ -386,53 +360,6 @@ function recursiveBallCheck(startBall, matchesArray) {
         leftBallIndex = startBallIndex - 1,
         rightBall,
         leftBall;
-//    if (rightBallIndex > -1 &&
-//            rightBallIndex < ballGroup.length &&
-//            rightBall = ballGroup.getAt(rightBallIndex) &&
-//            startBall.canMatch &&
-//            startBall.frame === rightBall.frame &&
-//            matchesArray.indexOf(rightBall) < 0) {
-//
-//        rightBall.canMatch = true;
-//        matchesArray.push(ballGroup.getIndex(rightBall));
-//        recursiveBallCheck(rightBall, matchesArray);
-//    } else if (leftBallIndex > -1 &&
-//               leftBallIndex < ballGroup.length &&
-//               startBall.canMatch &&
-//               startBall.frame === leftBall.frame &&
-//               matchesArray.indexOf(leftBall) < 0) {
-//
-//        leftBall.canMatch = true;
-//        matchesArray.push(ballGroup.getIndex(leftBall));
-//        recursiveBallCheck(leftBall, matchesArray);
-//    } else {
-//        return;
-//    }
-//    // ensure right and left balls are within the group to avoid out of bounds errors
-//    if (rightBallIndex > -1 && rightBallIndex < ballGroup.length) {
-//        rightBall = ballGroup.getAt(rightBallIndex);
-//    }
-//    if (leftBallIndex > -1 && leftBallIndex < ballGroup.length) {
-//        leftBall = ballGroup.getAt(leftBallIndex);
-//    }
-//    console.log('r ' + matchesArray.indexOf(rightBall) + ' l ' + matchesArray.indexOf(rightBallIndex));
-//    // check flag to avoid matches that are not at the hitzone of the bullet
-//    if (startBall.canMatch) {
-//        // check matching ball type and not already included in matches
-//        if (startBall.frame === rightBall.frame && matchesArray.indexOf(rightBall) < 0) {
-//            rightBall.canMatch = true;
-//            matchesArray.push(rightBallIndex);
-//            recursiveBallCheck(rightBall, matchesArray);
-//        }
-//        if (startBall.frame === leftBall.frame && matchesArray.indexOf(leftBallIndex) < 0) {
-//            leftBall.canMatch = true;
-//            matchesArray.push(leftBallIndex);
-//            recursiveBallCheck(leftBall, matchesArray);
-//        }
-
-        // ensure right and left balls are within the group to avoid out of bounds errors
-
-
 
     // check flag to avoid matches that are not at the hitzone of the bullet
     if (startBall.canMatch) {
@@ -456,13 +383,6 @@ function recursiveBallCheck(startBall, matchesArray) {
                 recursiveBallCheck(leftBall, matchesArray);
             }
         }
-//        else {
-//
-//            return;
-//        }
-
-    } else {
-        return;
     }
 }
 
@@ -478,13 +398,30 @@ function killBalls(matches) {
         sortedMatches = uniqueMatches.sort(function (a, b) {
             return a - b;
         }),
-        i;
+        i, isMiddlePath;
+    // Trigger a check for the balls immediately to the right and left of the gap from the killed balls
+    // *exclude the start and end of path as they cannot make a sandwich
+    if (sortedMatches[0] > 0 && sortedMatches[sortedMatches.length - 1] < ballGroup.length) {
+        isMiddlePath = true;
+    }
+
     // need to readjust the indeces to remove the correct balls once the indeces change from removing from ballgroup
     if (sortedMatches.length >= 3) {
         for (i = 0; i < sortedMatches.length; i += 1) {
             ballGroup.getAt(sortedMatches[i] - i).kill();
             ballGroup.remove(ballGroup.getAt(sortedMatches[i] - i));
             score += pointsPerBall;
+        }
+    }
+
+    // Start recursive check of two balls if they match
+    if (isMiddlePath) {
+        if (ballGroup.getAt(sortedMatches[0] - 1).frame === ballGroup.getAt(sortedMatches[0]).frame) {
+            // check matches and kill 3-ball matches
+            matches = [];
+            matches.push(sortedMatches[0] - 1);
+            recursiveBallCheck(ballGroup.getAt(sortedMatches[0] - 1), matches);
+            killBalls(matches);
         }
     }
 }
