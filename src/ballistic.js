@@ -3,7 +3,7 @@
 // define all functions, avoid JLint errors
 var Phaser, preload, create, update, render, createSpiralPath, recursiveSpiral, movingSpiral,
     update, collisionHandlerBullets, collisionHandlerSpiralBalls, fire, changeLevel, getCurrentLevel,
-    moveBallPath, render, console, recursiveSpiralInsert, recursiveBallCheck, killBalls;
+    moveBallPath, render, console, recursiveSpiralInsert, recursiveBallCheck, killBalls, isMoveComplete;
 
 var game = new Phaser.Game(800, 600, Phaser.CANVAS, 'phaser-example', { preload: preload, create: create, update: update, render: render });
 
@@ -30,6 +30,8 @@ var nextFire = 0;
 var levelThresholds = [100, 200, 300, 400, 500];
 var centerX;
 var centerY;
+var matches = [];
+var isInsertEnded = true;
 
 
 function create() {
@@ -182,8 +184,33 @@ function update() {
     }
 
     // Trigger collision handlers for balls that reach the path
-    game.physics.arcade.overlap(ballGroup, bullet, collisionHandlerBullets);
-    game.physics.arcade.overlap(ballGroup, ballGroup, collisionHandlerSpiralBalls);
+    if (game.physics.arcade.overlap(ballGroup, bullet, collisionHandlerBullets)) {
+        isInsertEnded = false;
+    }
+
+    /*
+        To allow all movement to finish before checking matches, isMoveComplete
+    */
+    if (game.physics.arcade.overlap(ballGroup, ballGroup, collisionHandlerSpiralBalls)) {
+        isMoveComplete = false;
+    } else {
+        isMoveComplete = true;
+    }
+
+    if (isMoveComplete && !isInsertEnded) {
+        console.log('bullet before check ' + matches.length);
+        // check matches and kill 3-ball matches
+//        matches = [];
+//        matches.push(ballGroup.getIndex(bullet));
+        recursiveBallCheck(ballGroup.getAt(matches[0]), matches);
+        killBalls(matches);
+
+        // stop any balls being checkable
+        ballGroup.forEach(function (ball) {
+            ball.canCheck = false;
+        });
+        isInsertEnded = true;
+    }
 
     // Ready a new bullet once the other is either out of the screen or added to the ball group
     if (!bullet.alive || ballGroup.contains(bullet)) {
@@ -196,8 +223,7 @@ function update() {
         bullet.checkWorldBounds = true;
         bullet.outOfBoundsKill = true;
     }
-    console.log('update');
-//    movingSpiral(spiralTestBall);
+
     moveBallPath();
 }
 
@@ -259,6 +285,10 @@ function collisionHandlerBullets(bulletCheck, ballCheck) {
     bulletCheck.body.moves = false;
     bulletCheck.x = path[bulletCheck.spiralIndex].x;
     bulletCheck.y = path[bulletCheck.spiralIndex].y;
+    // add to match array for checking if not already included
+    if (matches.indexOf(ballGroup.getIndex(bulletCheck)) < 0) {
+        matches.push(ballGroup.getIndex(bulletCheck));
+    }
     // add an identifier to the bullet that it is the center of recursive match checks, delete the identifier when complete
     bulletCheck.canMatch = true;
     // TODO build function to recursively adjust all the spirals until each ball does not touch but has inserted the bullet
@@ -270,7 +300,7 @@ function collisionHandlerBullets(bulletCheck, ballCheck) {
 */
 function collisionHandlerSpiralBalls(ballA, ballB) {
     "use strict";
-    var leftBall, rightBall, newRightIndex, matches = [];
+    var leftBall, rightBall, newRightIndex; //, matches = [];
 
     // determine which ball is ahead of the other in the group to avoid switching positions
     if (ballGroup.getIndex(ballA) < ballGroup.getIndex(ballB)) {
@@ -295,36 +325,18 @@ function collisionHandlerSpiralBalls(ballA, ballB) {
     rightBall.y = path[rightBall.spiralIndex].y;
 
     // check matches and kill 3-ball matches
-    matches = [];
-    matches.push(ballGroup.getIndex(leftBall));
-    recursiveBallCheck(leftBall, matches);
-    killBalls(matches);
-    matches = [];
-    matches.push(ballGroup.getIndex(rightBall));
-    recursiveBallCheck(rightBall, matches);
-    killBalls(matches);
+//    matches = [];
+//    matches.push(ballGroup.getIndex(leftBall));
+//    recursiveBallCheck(leftBall, matches);
+//    killBalls(matches);
+//    matches = [];
+//    matches.push(ballGroup.getIndex(rightBall));
+//    recursiveBallCheck(rightBall, matches);
+//    killBalls(matches);
 
-    ballGroup.forEach(function (ball) {
-        ball.canCheck = false;
-    });
-//    if (ballA.frame === ballB.frame) {
-//        // if match then score
-//        score += pointsPerBall;
-//        ballA.kill();
-//        ballB.kill();
-//    } else {
-//        var tempIndex = ballB.spiralIndex;
-//
-////        bulletCheck.spiralIndex = ballCheck.spiralIndex;
-////        bulletCheck.x = path[bulletCheck.spiralIndex].x;
-////        bulletCheck.y = path[bulletCheck.spiralIndex].y;
-////        if (ballCheck.spiralIndex < path.length - 1) {
-////            ballCheck.spiralIndex += 1;
-////            ballCheck.x = path[ballCheck.spiralIndex].x;
-////            ballCheck.y = path[ballCheck.spiralIndex].y;
-////        }
-//
-//    }
+//    ballGroup.forEach(function (ball) {
+//        ball.canCheck = false;
+//    });
 
     changeLevel();
 }
@@ -389,11 +401,11 @@ function recursiveBallCheck(startBall, matchesArray) {
 /*
     Takes array of indeces and kills the balls that filled it if more than 3
 */
-function killBalls(matches) {
+function killBalls(matchesArray) {
     "use strict";
     // remove duplicates and sort
-    var uniqueMatches = matches.filter(function (item, pos, self) {
-        return matches.indexOf(item) === pos;
+    var uniqueMatches = matchesArray.filter(function (item, pos, self) {
+        return matchesArray.indexOf(item) === pos;
     }), /* sort */
         sortedMatches = uniqueMatches.sort(function (a, b) {
             return a - b;
@@ -424,6 +436,9 @@ function killBalls(matches) {
             killBalls(matches);
         }
     }
+
+    // clear array
+    matches = [];
 }
 
 function getCurrentLevel(currentScore) {
