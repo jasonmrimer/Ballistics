@@ -1,10 +1,13 @@
 // This project recreates Hitomi's favorite game.
 
+/* !! There should always be an invisible anchor ball at the 0 index to slam back and all new balls should be inserted at index 1
+*/
+
 // define all functions, avoid JLint errors
 var Phaser, preload, create, update, render, createSpiralPath, recursiveSpiral, movingSpiral,
     update, collisionHandlerBullets, collisionHandlerSpiralBalls, fire, changeLevel, getCurrentLevel,
     moveBallPath, render, console, recursiveSpiralInsert, recursiveBallCheck, killBalls, isMoveComplete,
-    slamBack;
+    slamBack, slamBackToBallIndex;
 
 var game = new Phaser.Game(800, 600, Phaser.CANVAS, 'phaser-example', { preload: preload, create: create, update: update, render: render });
 
@@ -33,7 +36,7 @@ var centerX;
 var centerY;
 var matches = [];
 var isInsertEnded = true;
-var slamBackToBall = null;
+var slamBackToBallIndex = 0;
 
 function create() {
     "use strict";
@@ -79,22 +82,24 @@ function create() {
     createSpiralPath();
 
     // draw the balls along the path, leave room at end for pushing
-    for (i = 0; i < (path.length / 2); i += bullet.width) {
-        pathBall = game.add.sprite(path[i].x, path[i].y, 'bullets', game.rnd.between(0, 5), ballGroup);
+    // anchor ball
+    pathBall = game.add.sprite(path[0].x, path[0].y, 'bullets', 0, ballGroup);
+    pathBall.spiralIndex = i;
+    pathBall.anchor.set(0.5);
+
+    for (i = 1; i < (path.length / 2); i += 16) {
+        pathBall = game.add.sprite(path[i].x, path[i].y, 'bullets', game.rnd.between(1, 5), ballGroup);
         pathBall.spiralIndex = i;
         pathBall.anchor.set(0.5);
-        game.physics.enable(pathBall, Phaser.Physics.ARCADE);
-        pathBall.body.immovable = true;
-        pathBall.body.allowRotation = false;
-        pathBall.enableBody = true;
-        pathBall.checkWorldBounds = true;
-        pathBall.outOfBoundsKill = true;
     }
 
     movingSpiral();
 
     ballGroup.enableBody = true;
     ballGroup.physicsBodyType = Phaser.Physics.ARCADE;
+    ballGroup.setAll('body.immovable', true);
+    ballGroup.setAll('body.allowRotation', true);
+    ballGroup.setAll('enableBody', true);
     ballGroup.setAll('checkWorldBounds', true);
     ballGroup.setAll('outOfBoundsKill', true);
 
@@ -178,7 +183,6 @@ function movingSpiral(ball) {
 
 function update() {
     "use strict";
-
     // Command to fire a bullet
     if (game.input.activePointer.isDown) {
         fire();
@@ -199,34 +203,53 @@ function update() {
     }
 
     if (isMoveComplete && !isInsertEnded) {
-        console.log('bullet before check ' + matches.length);
         // check matches and kill 3-ball matches
-//        matches = [];
-//        matches.push(ballGroup.getIndex(bullet));
         recursiveBallCheck(ballGroup.getAt(matches[0]), matches);
         killBalls(matches);
 
         // stop any balls being checkable
         ballGroup.forEach(function (ball) {
-            ball.canCheck = false;
+            ball.canMatch = false;
         });
         isInsertEnded = true;
     }
 
     // slamBack to fill gaps
-    if (slamBackToBall !== null) {
+    if (slamBackToBallIndex > 0) {
         // overlap means the balls met and gap filled, end the slamBack method
-        if (game.physics.arcade.overlap(slamBackToBall, ballGroup.getAt(ballGroup.getIndex(slamBackToBall) + 1), collisionHandlerSpiralBalls)) {
-            slamBackToBall = null;
+        if (game.physics.arcade.overlap(ballGroup.getAt(slamBackToBallIndex), ballGroup.getAt(slamBackToBallIndex + 1), collisionHandlerSpiralBalls)) {
+            // check if the slamBacks trigger another kill
+            // check if slamBackToBall is in the middle
+            // *exclude the start and end of path as they cannot make a sandwich
+            if (slamBackToBallIndex < ballGroup.length - 1) {
+                // Start recursive check of two balls if they match
+                if (ballGroup.getAt(slamBackToBallIndex).frame === ballGroup.getAt(slamBackToBallIndex + 1).frame) {
+                    // check matches and kill 3-ball matches
+                    ballGroup.getAt(slamBackToBallIndex).canMatch = true;
+                    matches = [];
+                    matches.push(slamBackToBallIndex);
+                    recursiveBallCheck(ballGroup.getAt(slamBackToBallIndex), matches);
+                    killBalls(matches);
+
+                    // stop any balls being checkable
+                    ballGroup.forEach(function (ball) {
+                        ball.canMatch = false;
+                    });
+                } else {
+                    slamBackToBallIndex = 0;
+                }
+            } else {
+                slamBackToBallIndex = 0;
+            }
         } else { // if it has yet to overlap AND a kill triggered the slam, keep moving all balls backward on path
-            slamBack(slamBackToBall);
+            slamBack(slamBackToBallIndex);
         }
     }
 
     // Ready a new bullet once the other is either out of the screen or added to the ball group
     if (!bullet.alive || ballGroup.contains(bullet)) {
         // Bullet
-        bullet = game.add.sprite(centerX, centerY, 'bullets', game.rnd.between(0, 5));
+        bullet = game.add.sprite(centerX, centerY, 'bullets', game.rnd.between(1, 5));
         bullet.anchor.set(0.5);
         game.physics.enable(bullet, Phaser.Physics.ARCADE);
         bullet.body.allowRotation = false;
@@ -335,20 +358,6 @@ function collisionHandlerSpiralBalls(ballA, ballB) {
     rightBall.x = path[rightBall.spiralIndex].x;
     rightBall.y = path[rightBall.spiralIndex].y;
 
-    // check matches and kill 3-ball matches
-//    matches = [];
-//    matches.push(ballGroup.getIndex(leftBall));
-//    recursiveBallCheck(leftBall, matches);
-//    killBalls(matches);
-//    matches = [];
-//    matches.push(ballGroup.getIndex(rightBall));
-//    recursiveBallCheck(rightBall, matches);
-//    killBalls(matches);
-
-//    ballGroup.forEach(function (ball) {
-//        ball.canCheck = false;
-//    });
-
     changeLevel();
 }
 
@@ -414,19 +423,22 @@ function recursiveBallCheck(startBall, matchesArray) {
 */
 function killBalls(matchesArray) {
     "use strict";
-    // remove duplicates and sort
-    var uniqueMatches = matchesArray.filter(function (item, pos, self) {
+    var uniqueMatches, sortedMatches, i, isMiddlePath;
+
+    // remove duplicates
+    uniqueMatches = matchesArray.filter(function (item, pos, self) {
         return matchesArray.indexOf(item) === pos;
-    }), /* sort */
-        sortedMatches = uniqueMatches.sort(function (a, b) {
-            return a - b;
-        }),
-        i, isMiddlePath;
-    // Trigger a check for the balls immediately to the right and left of the gap from the killed balls
-    // *exclude the start and end of path as they cannot make a sandwich
-    if (sortedMatches[0] > 0 && sortedMatches[sortedMatches.length - 1] < ballGroup.length) {
-        isMiddlePath = true;
-    }
+    });
+    // sort
+    sortedMatches = uniqueMatches.sort(function (a, b) {
+        return a - b;
+    });
+
+//    // Trigger a check for the balls immediately to the right and left of the gap from the killed balls
+//    // *exclude the start and end of path as they cannot make a sandwich
+//    if (sortedMatches[0] > 0 && sortedMatches[sortedMatches.length - 1] < ballGroup.length) {
+//        isMiddlePath = true;
+//    }
 
     // need to readjust the indeces to remove the correct balls once the indeces change from removing from ballgroup
     if (sortedMatches.length >= 3) {
@@ -436,21 +448,19 @@ function killBalls(matchesArray) {
             score += pointsPerBall;
         }
         // make balls touch/nearly touch to slam back (could be used to slow secondary kills using that collision)
-        slamBackToBall = ballGroup.getAt(sortedMatches[0] - 1);
-//        slamBack(ballGroup.getAt(sortedMatches[0] - 1));
-
+        slamBackToBallIndex = sortedMatches[0] - 1;
     }
 
-    // Start recursive check of two balls if they match
-    if (isMiddlePath) {
-        if (ballGroup.getAt(sortedMatches[0] - 1).frame === ballGroup.getAt(sortedMatches[0]).frame) {
-            // check matches and kill 3-ball matches
-            matches = [];
-            matches.push(sortedMatches[0] - 1);
-            recursiveBallCheck(ballGroup.getAt(sortedMatches[0] - 1), matches);
-            killBalls(matches);
-        }
-    }
+//    // Start recursive check of two balls if they match
+//    if (isMiddlePath) {
+//        if (ballGroup.getAt(sortedMatches[0] - 1).frame === ballGroup.getAt(sortedMatches[0]).frame) {
+//            // check matches and kill 3-ball matches
+//            matches = [];
+//            matches.push(sortedMatches[0] - 1);
+//            recursiveBallCheck(ballGroup.getAt(sortedMatches[0] - 1), matches);
+//            killBalls(matches);
+//        }
+//    }
 
     // clear array
     matches = [];
@@ -460,11 +470,11 @@ function killBalls(matchesArray) {
 /*
     When ball sections "kill" it leaves a gap. This function pulls the balls ahead of the kill zone back toward the beginning of the gap.
 */
-function slamBack(slamToBall) {
+function slamBack(slamIndex) {
     "use strict";
-    var i, stbIndex;
-    stbIndex = ballGroup.getIndex(slamToBall);
-    for (i = (stbIndex + 1); i < ballGroup.length; i += 1) {
+    var i; //, stbIndex;
+//    stbIndex = ballGroup.getIndex(slamToBall);
+    for (i = (slamIndex + 1); i < ballGroup.length; i += 1) {
         ballGroup.getAt(i).spiralIndex -= 1;
         ballGroup.getAt(i).x = path[ballGroup.getAt(i).spiralIndex].x;
         ballGroup.getAt(i).y = path[ballGroup.getAt(i).spiralIndex].y;
