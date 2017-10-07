@@ -3,7 +3,8 @@
 // define all functions, avoid JLint errors
 var Phaser, preload, create, update, render, createSpiralPath, recursiveSpiral, movingSpiral,
     update, collisionHandlerBullets, collisionHandlerSpiralBalls, fire, changeLevel, getCurrentLevel,
-    moveBallPath, render, console, recursiveSpiralInsert, recursiveBallCheck, killBalls, isMoveComplete;
+    moveBallPath, render, console, recursiveSpiralInsert, recursiveBallCheck, killBalls, isMoveComplete,
+    slamBack;
 
 var game = new Phaser.Game(800, 600, Phaser.CANVAS, 'phaser-example', { preload: preload, create: create, update: update, render: render });
 
@@ -424,6 +425,9 @@ function killBalls(matchesArray) {
             ballGroup.remove(ballGroup.getAt(sortedMatches[i] - i));
             score += pointsPerBall;
         }
+        // make balls touch/nearly touch to slam back (could be used to slow secondary kills using that collision)
+        slamBack(ballGroup.getAt(sortedMatches[0] - 1));
+
     }
 
     // Start recursive check of two balls if they match
@@ -439,6 +443,21 @@ function killBalls(matchesArray) {
 
     // clear array
     matches = [];
+
+}
+
+/*
+    When ball sections "kill" it leaves a gap. This function pulls the balls ahead of the kill zone back toward the beginning of the gap.
+*/
+function slamBack(slamToBall) {
+    "use strict";
+    var i, stbIndex;
+    stbIndex = ballGroup.getIndex(slamToBall);
+    for (i = (stbIndex + 1); i < ballGroup.length; i += 1) {
+        ballGroup.getAt(i).spiralIndex = ballGroup.getAt(i - 1).spiralIndex + 1;
+        ballGroup.getAt(i).x = path[ballGroup.getAt(i).spiralIndex].x;
+        ballGroup.getAt(i).y = path[ballGroup.getAt(i).spiralIndex].y;
+    }
 }
 
 function getCurrentLevel(currentScore) {
