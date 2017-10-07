@@ -33,7 +33,7 @@ var centerX;
 var centerY;
 var matches = [];
 var isInsertEnded = true;
-
+var slamBackToBall = null;
 
 function create() {
     "use strict";
@@ -211,6 +211,16 @@ function update() {
             ball.canCheck = false;
         });
         isInsertEnded = true;
+    }
+
+    // slamBack to fill gaps
+    if (slamBackToBall !== null) {
+        // overlap means the balls met and gap filled, end the slamBack method
+        if (game.physics.arcade.overlap(slamBackToBall, ballGroup.getAt(ballGroup.getIndex(slamBackToBall) + 1), collisionHandlerSpiralBalls)) {
+            slamBackToBall = null;
+        } else { // if it has yet to overlap AND a kill triggered the slam, keep moving all balls backward on path
+            slamBack(slamBackToBall);
+        }
     }
 
     // Ready a new bullet once the other is either out of the screen or added to the ball group
@@ -426,7 +436,8 @@ function killBalls(matchesArray) {
             score += pointsPerBall;
         }
         // make balls touch/nearly touch to slam back (could be used to slow secondary kills using that collision)
-        slamBack(ballGroup.getAt(sortedMatches[0] - 1));
+        slamBackToBall = ballGroup.getAt(sortedMatches[0] - 1);
+//        slamBack(ballGroup.getAt(sortedMatches[0] - 1));
 
     }
 
@@ -454,7 +465,7 @@ function slamBack(slamToBall) {
     var i, stbIndex;
     stbIndex = ballGroup.getIndex(slamToBall);
     for (i = (stbIndex + 1); i < ballGroup.length; i += 1) {
-        ballGroup.getAt(i).spiralIndex = ballGroup.getAt(i - 1).spiralIndex + 1;
+        ballGroup.getAt(i).spiralIndex -= 1;
         ballGroup.getAt(i).x = path[ballGroup.getAt(i).spiralIndex].x;
         ballGroup.getAt(i).y = path[ballGroup.getAt(i).spiralIndex].y;
     }
