@@ -179,8 +179,12 @@ function recursiveSpiral(x, y) {
 
 function movingSpiral(ball) {
     "use strict";
+
 }
 
+/*
+    Update occurs as often as the frames allow and enables the steady change of sprites on the screen. This update moves balls along the spiral path during every repaint() and facilitates kills/movement in a streaming fashion
+*/
 function update() {
     "use strict";
     // Command to fire a bullet
@@ -323,10 +327,9 @@ function collisionHandlerBullets(bulletCheck, ballCheck) {
     if (matches.indexOf(ballGroup.getIndex(bulletCheck)) < 0) {
         matches.push(ballGroup.getIndex(bulletCheck));
     }
+
     // add an identifier to the bullet that it is the center of recursive match checks, delete the identifier when complete
     bulletCheck.canMatch = true;
-    // TODO build function to recursively adjust all the spirals until each ball does not touch but has inserted the bullet
-    changeLevel();
 }
 
 /*
@@ -361,6 +364,9 @@ function collisionHandlerSpiralBalls(ballA, ballB) {
     changeLevel();
 }
 
+/*
+    Shoots a ball at the cursor (TODO needs to be a right/left push to a dotted line instead of at cursor)
+*/
 function fire() {
     "use strict";
     game.physics.arcade.moveToPointer(bullet, 300);
@@ -395,6 +401,7 @@ function recursiveBallCheck(startBall, matchesArray) {
 
     // check flag to avoid matches that are not at the hitzone of the bullet
     if (startBall.canMatch) {
+        // check right ball
         if (rightBallIndex > -1 && rightBallIndex < ballGroup.length) {
             rightBall = ballGroup.getAt(rightBallIndex);
 
@@ -406,9 +413,10 @@ function recursiveBallCheck(startBall, matchesArray) {
             }
         }
 
+        // check left ball
         if (leftBallIndex > -1 && leftBallIndex < ballGroup.length) {
             leftBall = ballGroup.getAt(leftBallIndex);
-
+            // check matching ball type and not already included in matches
             if (startBall.frame === leftBall.frame && matchesArray.indexOf(leftBallIndex) < 0) {
                 leftBall.canMatch = true;
                 matchesArray.push(leftBallIndex);
@@ -434,12 +442,6 @@ function killBalls(matchesArray) {
         return a - b;
     });
 
-//    // Trigger a check for the balls immediately to the right and left of the gap from the killed balls
-//    // *exclude the start and end of path as they cannot make a sandwich
-//    if (sortedMatches[0] > 0 && sortedMatches[sortedMatches.length - 1] < ballGroup.length) {
-//        isMiddlePath = true;
-//    }
-
     // need to readjust the indeces to remove the correct balls once the indeces change from removing from ballgroup
     if (sortedMatches.length >= 3) {
         for (i = 0; i < sortedMatches.length; i += 1) {
@@ -451,20 +453,11 @@ function killBalls(matchesArray) {
         slamBackToBallIndex = sortedMatches[0] - 1;
     }
 
-//    // Start recursive check of two balls if they match
-//    if (isMiddlePath) {
-//        if (ballGroup.getAt(sortedMatches[0] - 1).frame === ballGroup.getAt(sortedMatches[0]).frame) {
-//            // check matches and kill 3-ball matches
-//            matches = [];
-//            matches.push(sortedMatches[0] - 1);
-//            recursiveBallCheck(ballGroup.getAt(sortedMatches[0] - 1), matches);
-//            killBalls(matches);
-//        }
-//    }
-
     // clear array
     matches = [];
 
+    // ups level if able
+    changeLevel();
 }
 
 /*
@@ -473,7 +466,7 @@ function killBalls(matchesArray) {
 function slamBack(slamIndex) {
     "use strict";
     var i; //, stbIndex;
-//    stbIndex = ballGroup.getIndex(slamToBall);
+    // loop through each ball and decrease its index, it will stop during a collide in update()
     for (i = (slamIndex + 1); i < ballGroup.length; i += 1) {
         ballGroup.getAt(i).spiralIndex -= 1;
         ballGroup.getAt(i).x = path[ballGroup.getAt(i).spiralIndex].x;
@@ -490,12 +483,15 @@ function getCurrentLevel(currentScore) {
 */
 function moveBallPath() {
     "use strict";
-    ballOnPath.x += 2;
+    // stop any balls being checkable
+//    ballGroup.forEach(function (ball) {
+//        ball.spiralIndex += 1;
+//        ball.x = false;
+//    });
+//    ballOnPath.x += 2;
 }
 
 function render() {
     "use strict";
     game.debug.text('Level: ' + level + ' | Score: ' + score + '| Next Level at: ' + levelThresholds[level - 1], 32, 64);
 }
-
-
