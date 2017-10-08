@@ -37,6 +37,8 @@ var centerY;
 var matches = [];
 var isInsertEnded = true;
 var slamBackToBallIndex = 0;
+var lastMoveMS = 0;
+var checkTimeMS;
 
 function create() {
     "use strict";
@@ -262,7 +264,12 @@ function update() {
         bullet.outOfBoundsKill = true;
     }
 
-    moveBallPath();
+    // move the path based on the game speed
+    checkTimeMS = game.time.totalElapsedSeconds() * 1000;
+    if (checkTimeMS - lastMoveMS >= 25) {
+        lastMoveMS = checkTimeMS;
+        moveBallPath();
+    }
 }
 
 /*
@@ -483,11 +490,18 @@ function getCurrentLevel(currentScore) {
 */
 function moveBallPath() {
     "use strict";
-    // stop any balls being checkable
-//    ballGroup.forEach(function (ball) {
-//        ball.spiralIndex += 1;
-//        ball.x = false;
-//    });
+    // advance along the path one index
+    ballGroup.forEach(function (ball) {
+        ball.spiralIndex += 1;
+        // check game end
+        if (ball.spiralIndex >= path.length) {
+            //TODO end game
+        } else if (ballGroup.getIndex(ball) > 0) {
+            ball.x = path[ball.spiralIndex].x;
+            ball.y = path[ball.spiralIndex].y;
+        }
+
+    });
 //    ballOnPath.x += 2;
 }
 
