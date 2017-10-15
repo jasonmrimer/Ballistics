@@ -7,7 +7,7 @@
 var Phaser, preload, create, update, render, createSpiralPath, recursiveSpiral, movingSpiral,
     update, collisionHandlerBullets, collisionHandlerSpiralBalls, fire, changeLevel, getCurrentLevel,
     moveBallPath, render, console, recursiveSpiralInsert, recursiveBallCheck, killBalls, isMoveComplete,
-    slamBack, slamBackToBallIndex, tightenPath, moveSingleBall;
+    slamBack, slamBackToBallIndex, tightenPath, moveSingleBall, createBall;
 
 var game = new Phaser.Game(800, 600, Phaser.CANVAS, 'phaser-example', { preload: preload, create: create, update: update, render: render });
 
@@ -44,11 +44,13 @@ var sprite,
     lastTightenMS = 0,
     tightenIndex = 0,
     tightenComplete = true,
-    gameOver = false;
+    gameOver = false,
+    pathBallType = 0,
+    bulletType = 1;
 
 function create() {
     "use strict";
-    var spiralTestBall, i, pathBall;
+    var i, pathBall;
     centerX = game.world.centerX;
     centerY = game.world.centerY;
 
@@ -58,15 +60,7 @@ function create() {
 
 
     // Bullet
-    bullet = game.add.sprite(400, 300, 'bullets', game.rnd.between(3, 5));
-    bullet.anchor.set(0.5);
-    game.physics.enable(bullet, Phaser.Physics.ARCADE);
-    bullet.body.immovable = true;
-    bullet.body.allowRotation = false;
-    bullet.enableBody = true;
-    bullet.checkWorldBounds = true;
-    bullet.outOfBoundsKill = true;
-
+    bullet = createBall(bulletType);
 
     // Balls
     ballGroup = game.add.physicsGroup();
@@ -85,9 +79,6 @@ function create() {
     anchorBall.checkWorldBounds = true;
     anchorBall.outOfBoundsKill = true;
 
-//    pathBall = game.add.sprite(path[0].x, path[0].y, 'bullets', 0, ballGroup);
-//    pathBall.spiralIndex = i;
-//    pathBall.anchor.set(0.5);
     // set ball group characteristics
     ballGroup.enableBody = true;
     ballGroup.physicsBodyType = Phaser.Physics.ARCADE;
@@ -98,12 +89,8 @@ function create() {
     ballGroup.setAll('outOfBoundsKill', true);
 
     for (i = 0; i < path.length / 2; i += pathSpacer) {
-        pathBall = game.add.sprite(path[i].x, path[i].y, 'bullets', game.rnd.between(3, 5), ballGroup);
-        pathBall.spiralIndex = i;
-        pathBall.anchor.set(0.5);
+        pathBall = createBall(pathBallType, path[i].x, path[i].y, i);
     }
-
-
 
 }
 
@@ -118,12 +105,12 @@ function createSpiralPath() {
         point = [];
     }
 //    recursiveSpiral(200, centerY - 100);
-
+//
 //    var spiralRadiusMax = 400;
 //    var spiralNumber = 3;
 //    var spiralBallSpacer = bullet.width / 2;
 //    var spiralRadius = spiralBallSpacer * spiralNumber + 300;
-
+//
 //    //spirals
 //    for (spiralCount = 0; spiralCount < spiralNumber; spiralCount++) {
 //        for (spiralBallCount = 0; spiralBallCount < spiralBallSpacer; spiralBallCount++) {
@@ -135,7 +122,7 @@ function createSpiralPath() {
 ////            console.log('[' + x + ', ' + y + ']/n');
 //            spiralRadius -= spiralRadius / spiralBallSpacer;
 //        }
-
+//
 //        for (theta = 1080; theta >= 0; theta--) {
 ////            var theta = 2.0 * Math.PI * spiralBallCount / spiralBallSpacer; // get current angle
 ////            var theta = 2.0 * Math.PI * spiralRadius; // get current angle
@@ -146,16 +133,16 @@ function createSpiralPath() {
 ////            console.log('[' + x + ', ' + y + ']/n');
 //            spiralRadius -= spiralRadiusMax / 720;
 //        }
-
-
+//
+//
 //    }
-
+//
 //    for (radius = 300; radius > 0; radius--) {
 //        // equation of a logarithmic spiral in polar: r = a*(e^(b*theta))
 //        var x = Math.acos
 //
 //    }
-
+//
 //    recursiveSpiral(600, 300);
 //    recursiveSpiral(300)
 }
@@ -247,45 +234,19 @@ function update() {
 
     // Ready a new bullet once the other is either out of the screen or added to the ball group
     if (!bullet.alive || ballGroup.contains(bullet)) {
-        // Bullet
-        bullet = game.add.sprite(centerX, centerY, 'bullets', game.rnd.between(1, 5));
-        bullet.anchor.set(0.5);
-        game.physics.enable(bullet, Phaser.Physics.ARCADE);
-        bullet.body.allowRotation = false;
-        bullet.enableBody = true;
-        bullet.checkWorldBounds = true;
-        bullet.outOfBoundsKill = true;
+        bullet = createBall(bulletType);
     }
 
     // move the path based on the game speed
     checkTimeMS = game.time.totalElapsedSeconds() * 1000;
-    if (checkTimeMS - lastMoveMS >= 25 && isMoveComplete && isInsertEnded) {
+    if (checkTimeMS - lastMoveMS >= 1 && isMoveComplete && isInsertEnded) {
         // This needs to push the firstmostbal out (and trigger full spiral movement) until it passes the starting line then another ball takes its place
         lastMoveMS = checkTimeMS;
         moveBallPath();
-//        tightenPath();
     }
 
-    // tighten any remaining gaps
-    if (checkTimeMS - lastTightenMS >= 1000 && isMoveComplete && isInsertEnded) {
-        // This needs to slam every ball back its nearest
-        tightenComplete = false;
-        tightenIndex = 2;
-        lastTightenMS = checkTimeMS;
-    }
-
-    if (!tightenComplete) {
-         // overlap means the balls met and gap filled, end the slamBack method
-        if (game.physics.arcade.overlap(ballGroup.getAt(tightenIndex), ballGroup.getAt(tightenIndex + 1), collisionHandlerSpiralBalls)) {
-            if (tightenIndex > ballGroup.length - 1) {
-                tightenComplete = true;
-            } else {
-                tightenIndex += 1;
-            }
-        } else { // if it has yet to overlap, keep moving all balls backward on path
-            slamBack(tightenIndex);
-        }
-//        tightenPath();
+    if (gameOver) {
+        console.log('game over!');
     }
 }
 
@@ -300,11 +261,6 @@ function update() {
 function collisionHandlerBullets(bulletCheck, ballCheck) {
     "use strict";
     var bulletTheta, ballTheta;
-    bulletCheck.body.immovable = true;
-    bulletCheck.body.allowRotation = false;
-    bulletCheck.enableBody = true;
-    bulletCheck.checkWorldBounds = true;
-    bulletCheck.outOfBoundsKill = true;
 
     /*
         Adds the bullet to the spiral path ball group base on whether it is to the right/left of the ball with which it collides.
@@ -345,8 +301,7 @@ function collisionHandlerBullets(bulletCheck, ballCheck) {
         bulletCheck.spiralIndex = ballGroup.getAt(ballGroup.getIndex(ballCheck)).spiralIndex;
     }
     bulletCheck.body.moves = false;
-    bulletCheck.x = path[bulletCheck.spiralIndex].x;
-    bulletCheck.y = path[bulletCheck.spiralIndex].y;
+    moveSingleBall(bulletCheck, 0);
     // add to match array for checking if not already included
     if (matches.indexOf(ballGroup.getIndex(bulletCheck)) < 0) {
         matches.push(ballGroup.getIndex(bulletCheck));
@@ -376,15 +331,8 @@ function collisionHandlerSpiralBalls(ballA, ballB) {
     if (rightBall.spiralIndex === null) { // when not assigned because bullet is right of path ball
         rightBall.spiralIndex = leftBall.spiralIndex; // + 1;
     }
-//    else if ((rightBall.spiralIndex + 1) < path.length) { // still room on the path, increase by 1 until not colliding
-//        rightBall.spiralIndex += 1;
-//    } // moved to moveSingleBall else { // kill ball TODO end game
-//        rightBall.kill();
-//    }
+
     moveSingleBall(rightBall, 1);
-//    // set new position of bullet before sending to function (ought to add that to function...)
-//    rightBall.x = path[rightBall.spiralIndex].x;
-//    rightBall.y = path[rightBall.spiralIndex].y;
 
     changeLevel();
 }
@@ -494,9 +442,6 @@ function slamBack(slamIndex) {
     // loop through each ball and decrease its index, it will stop during a collide in update()
     for (i = (slamIndex + 1); i < ballGroup.length; i += 1) {
         moveSingleBall(ballGroup.getAt(i), -1);
-//        ballGroup.getAt(i).spiralIndex -= 1;
-//        ballGroup.getAt(i).x = path[ballGroup.getAt(i).spiralIndex].x;
-//        ballGroup.getAt(i).y = path[ballGroup.getAt(i).spiralIndex].y;
     }
 }
 
@@ -517,47 +462,8 @@ function moveBallPath() {
     if (game.physics.arcade.overlap(leadingBall, anchorBall)) {
         // trailing ball; use to push up the rest
         moveSingleBall(trailingBall, 1);
-//        trailingBall.spiralIndex += 1;
-//        trailingBall.x = path[trailingBall.spiralIndex].x;
-//        trailingBall.y = path[trailingBall.spiralIndex].y;
     } else {
-        newBall = game.add.sprite(path[0].x, path[0].y, 'bullets', game.rnd.between(3, 5));
-        newBall.anchor.set(0.5);
-//        newBall = game.add.sprite(790, 390, 'bullets', game.rnd.between(1, 5));
-//        newBall.spiralIndex = 0;
-        ballGroup.addAt(newBall, 0, false);
-        moveSingleBall(newBall, 0);
-//        newBall.x = path[newBall.spiralIndex].x;
-//        newBall.y = path[newBall.spiralIndex].y;
-    }
-//    ballGroup.forEach(function (ball) {
-//        ball.spiralIndex += 1;
-//        // check game end
-//        if (ball.spiralIndex >= path.length) {
-//            //TODO end game
-//        } else if (ballGroup.getIndex(ball) > 0) {
-//            ball.x = path[ball.spiralIndex].x;
-//            ball.y = path[ball.spiralIndex].y;
-//        }
-//
-//    });
-//    ballOnPath.x += 2;
-}
-
-function tightenPath() {
-    "use strict";
-    var ball = ballGroup.getAt(tightenIndex);
-    if (tightenIndex < ballGroup.length) {
-//        while (!game.physics.arcade.overlap(ball, ballGroup.getAt(tightenIndex - 1))) {
-            console.log(tightenIndex);
-            moveSingleBall(ball, -1);
-//            ball.spiralIndex -= 1;
-//            ball.x = path[ball.spiralIndex].x;
-//            ball.y = path[ball.spiralIndex].y;
-//        }
-        tightenIndex += 1;
-    } else {
-        tightenComplete = true;
+        newBall =  createBall(pathBallType, path[0].x, path[0].y, null);
     }
 }
 
@@ -565,16 +471,42 @@ function moveSingleBall(ball, spiralChange) {
     "use strict";
     if ((ball.spiralIndex + spiralChange > -1) && (ball.spiralIndex + spiralChange < path.length)) {
         ball.spiralIndex = ball.spiralIndex + spiralChange;
-        ball.x = path[ball.spiralIndex].x;
-        ball.y = path[ball.spiralIndex].y;
     } else if (ball.spiralIndex + spiralChange < 0) {
         ball.spiralIndex = 0;
-        ball.x = path[ball.spiralIndex].x;
-        ball.y = path[ball.spiralIndex].y;
-    } else if (ball.spiralIndex + spiralChange > path.length) {
+    } else if (ball.spiralIndex + spiralChange > path.length - 1) {
         ball.kill();
         gameOver = true;
+        return;
     }
+    ball.x = path[ball.spiralIndex].x;
+    ball.y = path[ball.spiralIndex].y;
+
+}
+
+function createBall(type, x, y, spiralIndex) {
+    "use strict";
+    var ball;
+    if (type === bulletType) {
+        ball = game.add.sprite(400, 300, 'bullets', game.rnd.between(3, 5));
+        ball.anchor.set(0.5);
+        game.physics.enable(ball, Phaser.Physics.ARCADE);
+        ball.body.immovable = true;
+        ball.body.allowRotation = false;
+        ball.enableBody = true;
+        ball.checkWorldBounds = true;
+        ball.outOfBoundsKill = true;
+    } else if (type === pathBallType && spiralIndex !== null) { // TODO will be deprecated when I remove the starting ball set for testing; all balls should start at index 0
+        ball = game.add.sprite(x, y, 'bullets', game.rnd.between(3, 5), ballGroup);
+        ball.spiralIndex = spiralIndex;
+        ball.anchor.set(0.5);
+    } else if (type === pathBallType && spiralIndex === null) {
+        ball = game.add.sprite(x, y, 'bullets', game.rnd.between(3, 5));
+        ball.spiralIndex = 0;
+        ball.anchor.set(0.5);
+        ballGroup.addAt(ball, 0, false);
+    }
+
+    return ball;
 }
 
 function render() {
