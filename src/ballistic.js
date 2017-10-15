@@ -7,7 +7,7 @@
 var Phaser, preload, create, update, render, createSpiralPath, recursiveSpiral, movingSpiral,
     update, collisionHandlerBullets, collisionHandlerSpiralBalls, fire, changeLevel, getCurrentLevel,
     moveBallPath, render, console, recursiveSpiralInsert, recursiveBallCheck, killBalls, isMoveComplete,
-    slamBack, slamBackToBallIndex;
+    slamBack, slamBackToBallIndex, tightenPath, moveSingleBall;
 
 var game = new Phaser.Game(800, 600, Phaser.CANVAS, 'phaser-example', { preload: preload, create: create, update: update, render: render });
 
@@ -19,26 +19,32 @@ function preload() {
     game.load.spritesheet('bullets', 'assets/sprites/balls.png', 17, 17);
 }
 
-var sprite;
-var ballOnPath;
-var path = [];              // Holds all points on the spiral in numerical order until I figure out the equation
-var bullet;
-var ballGroup;
-var level = 1;              // Indicates the current level the player is on, increasing difficulty/points
-var speed;                  // Velocity around the spiral increases proportional to the level
-var pointsPerBall = 25;     // Points scored per each clearing, increases proportional to level
-var score = 0;              // Total score - sum of pointsPerBall cleared
-var numBallTypes;           // Start with a small number of ball types and increase with level
-var fireRate = 100;
-var nextFire = 0;
-var levelThresholds = [100, 200, 300, 400, 500];
-var centerX;
-var centerY;
-var matches = [];
-var isInsertEnded = true;
-var slamBackToBallIndex = 0;
-var lastMoveMS = 0;
-var checkTimeMS;
+var sprite,
+    ballOnPath,
+    path = [],              // Holds all points on the spiral in numerical order until I figure out the equation
+    bullet,
+    anchorBall,
+    ballGroup,
+    level = 1,              // Indicates the current level the player is on, increasing difficulty/points
+    speed,                  // Velocity around the spiral increases proportional to the level
+    pointsPerBall = 25,     // Points scored per each clearing, increases proportional to level
+    score = 0,              // Total score - sum of pointsPerBall cleared
+    numBallTypes,           // Start with a small number of ball types and increase with level
+    fireRate = 100,
+    nextFire = 0,
+    levelThresholds = [100, 200, 300, 400, 500],
+    centerX,
+    centerY,
+    matches = [],
+    isInsertEnded = true,
+    slamBackToBallIndex = 0,
+    lastMoveMS = 0,
+    checkTimeMS,
+    pathSpacer = 16,
+    lastTightenMS = 0,
+    tightenIndex = 0,
+    tightenComplete = true,
+    gameOver = false;
 
 function create() {
     "use strict";
@@ -52,7 +58,7 @@ function create() {
 
 
     // Bullet
-    bullet = game.add.sprite(400, 300, 'bullets', game.rnd.between(0, 5));
+    bullet = game.add.sprite(400, 300, 'bullets', game.rnd.between(3, 5));
     bullet.anchor.set(0.5);
     game.physics.enable(bullet, Phaser.Physics.ARCADE);
     bullet.body.immovable = true;
@@ -62,41 +68,27 @@ function create() {
     bullet.outOfBoundsKill = true;
 
 
-    // Spiral Test Ball
-    spiralTestBall = game.add.sprite(700, 300, 'bullets', 0);
-    spiralTestBall.anchor.set(0.5);
-    game.physics.enable(spiralTestBall, Phaser.Physics.ARCADE);
-    spiralTestBall.body.allowRotation = false;
-    spiralTestBall.enableBody = true;
-    spiralTestBall.checkWorldBounds = true;
-    spiralTestBall.outOfBoundsKill = true;
-
     // Balls
-    ballOnPath = game.add.sprite(100, 100, 'ballType01');
-    ballOnPath.anchor.set(0.5);
-
-    game.physics.enable(ballOnPath, Phaser.Physics.ARCADE);
-
-    ballOnPath.body.allowRotation = false;
-
     ballGroup = game.add.physicsGroup();
 
     createSpiralPath();
 
     // draw the balls along the path, leave room at end for pushing
     // anchor ball
-    pathBall = game.add.sprite(path[0].x, path[0].y, 'bullets', 0, ballGroup);
-    pathBall.spiralIndex = i;
-    pathBall.anchor.set(0.5);
+    // Bullet
+    anchorBall = game.add.sprite(path[pathSpacer].x, path[pathSpacer].y, 'bullets', 0);
+    anchorBall.anchor.set(0.5);
+    game.physics.enable(anchorBall, Phaser.Physics.ARCADE);
+    anchorBall.body.immovable = true;
+    anchorBall.body.allowRotation = false;
+    anchorBall.enableBody = true;
+    anchorBall.checkWorldBounds = true;
+    anchorBall.outOfBoundsKill = true;
 
-    for (i = 1; i < (path.length / 2); i += 16) {
-        pathBall = game.add.sprite(path[i].x, path[i].y, 'bullets', game.rnd.between(1, 5), ballGroup);
-        pathBall.spiralIndex = i;
-        pathBall.anchor.set(0.5);
-    }
-
-    movingSpiral();
-
+//    pathBall = game.add.sprite(path[0].x, path[0].y, 'bullets', 0, ballGroup);
+//    pathBall.spiralIndex = i;
+//    pathBall.anchor.set(0.5);
+    // set ball group characteristics
     ballGroup.enableBody = true;
     ballGroup.physicsBodyType = Phaser.Physics.ARCADE;
     ballGroup.setAll('body.immovable', true);
@@ -104,6 +96,14 @@ function create() {
     ballGroup.setAll('enableBody', true);
     ballGroup.setAll('checkWorldBounds', true);
     ballGroup.setAll('outOfBoundsKill', true);
+
+    for (i = 0; i < path.length / 2; i += pathSpacer) {
+        pathBall = game.add.sprite(path[i].x, path[i].y, 'bullets', game.rnd.between(3, 5), ballGroup);
+        pathBall.spiralIndex = i;
+        pathBall.anchor.set(0.5);
+    }
+
+
 
 }
 
@@ -179,11 +179,6 @@ function recursiveSpiral(x, y) {
 
 }
 
-function movingSpiral(ball) {
-    "use strict";
-
-}
-
 /*
     Update occurs as often as the frames allow and enables the steady change of sprites on the screen. This update moves balls along the spiral path during every repaint() and facilitates kills/movement in a streaming fashion
 */
@@ -214,9 +209,8 @@ function update() {
         killBalls(matches);
 
         // stop any balls being checkable
-        ballGroup.forEach(function (ball) {
-            ball.canMatch = false;
-        });
+        ballGroup.setAll('canMatch', false);
+
         isInsertEnded = true;
     }
 
@@ -238,9 +232,7 @@ function update() {
                     killBalls(matches);
 
                     // stop any balls being checkable
-                    ballGroup.forEach(function (ball) {
-                        ball.canMatch = false;
-                    });
+                    ballGroup.setAll('canMatch', false);
                 } else {
                     slamBackToBallIndex = 0;
                 }
@@ -251,6 +243,7 @@ function update() {
             slamBack(slamBackToBallIndex);
         }
     }
+
 
     // Ready a new bullet once the other is either out of the screen or added to the ball group
     if (!bullet.alive || ballGroup.contains(bullet)) {
@@ -266,9 +259,33 @@ function update() {
 
     // move the path based on the game speed
     checkTimeMS = game.time.totalElapsedSeconds() * 1000;
-    if (checkTimeMS - lastMoveMS >= 25) {
+    if (checkTimeMS - lastMoveMS >= 25 && isMoveComplete && isInsertEnded) {
+        // This needs to push the firstmostbal out (and trigger full spiral movement) until it passes the starting line then another ball takes its place
         lastMoveMS = checkTimeMS;
         moveBallPath();
+//        tightenPath();
+    }
+
+    // tighten any remaining gaps
+    if (checkTimeMS - lastTightenMS >= 1000 && isMoveComplete && isInsertEnded) {
+        // This needs to slam every ball back its nearest
+        tightenComplete = false;
+        tightenIndex = 2;
+        lastTightenMS = checkTimeMS;
+    }
+
+    if (!tightenComplete) {
+         // overlap means the balls met and gap filled, end the slamBack method
+        if (game.physics.arcade.overlap(ballGroup.getAt(tightenIndex), ballGroup.getAt(tightenIndex + 1), collisionHandlerSpiralBalls)) {
+            if (tightenIndex > ballGroup.length - 1) {
+                tightenComplete = true;
+            } else {
+                tightenIndex += 1;
+            }
+        } else { // if it has yet to overlap, keep moving all balls backward on path
+            slamBack(tightenIndex);
+        }
+//        tightenPath();
     }
 }
 
@@ -344,7 +361,7 @@ function collisionHandlerBullets(bulletCheck, ballCheck) {
 */
 function collisionHandlerSpiralBalls(ballA, ballB) {
     "use strict";
-    var leftBall, rightBall, newRightIndex; //, matches = [];
+    var leftBall, rightBall, newRightIndex;
 
     // determine which ball is ahead of the other in the group to avoid switching positions
     if (ballGroup.getIndex(ballA) < ballGroup.getIndex(ballB)) {
@@ -357,16 +374,17 @@ function collisionHandlerSpiralBalls(ballA, ballB) {
     // left stays at its sprial index, right changes
     // switch spiral index then increase spiral index (aka position on spiral) until the two balls stop colliding
     if (rightBall.spiralIndex === null) { // when not assigned because bullet is right of path ball
-        rightBall.spiralIndex = leftBall.spiralIndex + 1;
-    } else if ((rightBall.spiralIndex + 1) < path.length) { // still room on the path, increase by 1 until not colliding
-        rightBall.spiralIndex += 1;
-    } else { // kill ball TODO end game
-        rightBall.kill();
+        rightBall.spiralIndex = leftBall.spiralIndex; // + 1;
     }
-
-    // set new position of bullet before sending to function (ought to add that to function...)
-    rightBall.x = path[rightBall.spiralIndex].x;
-    rightBall.y = path[rightBall.spiralIndex].y;
+//    else if ((rightBall.spiralIndex + 1) < path.length) { // still room on the path, increase by 1 until not colliding
+//        rightBall.spiralIndex += 1;
+//    } // moved to moveSingleBall else { // kill ball TODO end game
+//        rightBall.kill();
+//    }
+    moveSingleBall(rightBall, 1);
+//    // set new position of bullet before sending to function (ought to add that to function...)
+//    rightBall.x = path[rightBall.spiralIndex].x;
+//    rightBall.y = path[rightBall.spiralIndex].y;
 
     changeLevel();
 }
@@ -475,9 +493,10 @@ function slamBack(slamIndex) {
     var i; //, stbIndex;
     // loop through each ball and decrease its index, it will stop during a collide in update()
     for (i = (slamIndex + 1); i < ballGroup.length; i += 1) {
-        ballGroup.getAt(i).spiralIndex -= 1;
-        ballGroup.getAt(i).x = path[ballGroup.getAt(i).spiralIndex].x;
-        ballGroup.getAt(i).y = path[ballGroup.getAt(i).spiralIndex].y;
+        moveSingleBall(ballGroup.getAt(i), -1);
+//        ballGroup.getAt(i).spiralIndex -= 1;
+//        ballGroup.getAt(i).x = path[ballGroup.getAt(i).spiralIndex].x;
+//        ballGroup.getAt(i).y = path[ballGroup.getAt(i).spiralIndex].y;
     }
 }
 
@@ -491,18 +510,71 @@ function getCurrentLevel(currentScore) {
 function moveBallPath() {
     "use strict";
     // advance along the path one index
-    ballGroup.forEach(function (ball) {
-        ball.spiralIndex += 1;
-        // check game end
-        if (ball.spiralIndex >= path.length) {
-            //TODO end game
-        } else if (ballGroup.getIndex(ball) > 0) {
-            ball.x = path[ball.spiralIndex].x;
-            ball.y = path[ball.spiralIndex].y;
-        }
-
-    });
+    var trailingBall = ballGroup.getAt(0),
+        leadingBall = ballGroup.getAt(1),
+        newBall;
+    // if it is still touching the anchor ball (aka behind the starting line), continue moving; otherwise, insert a new ball
+    if (game.physics.arcade.overlap(leadingBall, anchorBall)) {
+        // trailing ball; use to push up the rest
+        moveSingleBall(trailingBall, 1);
+//        trailingBall.spiralIndex += 1;
+//        trailingBall.x = path[trailingBall.spiralIndex].x;
+//        trailingBall.y = path[trailingBall.spiralIndex].y;
+    } else {
+        newBall = game.add.sprite(path[0].x, path[0].y, 'bullets', game.rnd.between(3, 5));
+        newBall.anchor.set(0.5);
+//        newBall = game.add.sprite(790, 390, 'bullets', game.rnd.between(1, 5));
+//        newBall.spiralIndex = 0;
+        ballGroup.addAt(newBall, 0, false);
+        moveSingleBall(newBall, 0);
+//        newBall.x = path[newBall.spiralIndex].x;
+//        newBall.y = path[newBall.spiralIndex].y;
+    }
+//    ballGroup.forEach(function (ball) {
+//        ball.spiralIndex += 1;
+//        // check game end
+//        if (ball.spiralIndex >= path.length) {
+//            //TODO end game
+//        } else if (ballGroup.getIndex(ball) > 0) {
+//            ball.x = path[ball.spiralIndex].x;
+//            ball.y = path[ball.spiralIndex].y;
+//        }
+//
+//    });
 //    ballOnPath.x += 2;
+}
+
+function tightenPath() {
+    "use strict";
+    var ball = ballGroup.getAt(tightenIndex);
+    if (tightenIndex < ballGroup.length) {
+//        while (!game.physics.arcade.overlap(ball, ballGroup.getAt(tightenIndex - 1))) {
+            console.log(tightenIndex);
+            moveSingleBall(ball, -1);
+//            ball.spiralIndex -= 1;
+//            ball.x = path[ball.spiralIndex].x;
+//            ball.y = path[ball.spiralIndex].y;
+//        }
+        tightenIndex += 1;
+    } else {
+        tightenComplete = true;
+    }
+}
+
+function moveSingleBall(ball, spiralChange) {
+    "use strict";
+    if ((ball.spiralIndex + spiralChange > -1) && (ball.spiralIndex + spiralChange < path.length)) {
+        ball.spiralIndex = ball.spiralIndex + spiralChange;
+        ball.x = path[ball.spiralIndex].x;
+        ball.y = path[ball.spiralIndex].y;
+    } else if (ball.spiralIndex + spiralChange < 0) {
+        ball.spiralIndex = 0;
+        ball.x = path[ball.spiralIndex].x;
+        ball.y = path[ball.spiralIndex].y;
+    } else if (ball.spiralIndex + spiralChange > path.length) {
+        ball.kill();
+        gameOver = true;
+    }
 }
 
 function render() {
