@@ -198,13 +198,13 @@ function update() {
     if (isMoveComplete && !isInsertEnded) {
         // check matches and kill 3-ball matches
         recursiveBallCheck(ballGroup.getAt(matches[0]), matches);
-        killBalls(matches);
-
-        // stop any balls being checkable
-        ballGroup.setAll('canMatch', false);
-
+        if (killBalls(matches)) {
+            isSlamEnded = false;
+        } else {
+            // stop any balls being checkable
+            ballGroup.setAll('canMatch', false);
+        }
         isInsertEnded = true;
-        isSlamEnded = false;
     }
 
     // slamBack to fill gaps
@@ -214,29 +214,20 @@ function update() {
         slamBackRight = ballGroup.getAt(slamBackToBallIndex + 1);
         if (game.physics.arcade.overlap(slamBackLeft, slamBackRight, collisionHandlerSpiralBalls)) {
             // check if the slamBacks trigger another kill
-            // check if slamBackToBall is in the middle
-            // *exclude the start and end of path as they cannot make a sandwich
-            if (slamBackToBallIndex < ballGroup.length - 1) {
-                // Start recursive check of two balls if they match
-                if (ballGroup.getAt(slamBackToBallIndex).frame === ballGroup.getAt(slamBackToBallIndex + 1).frame) {
-                    //check for matches once then move up the path slaming every ball to tighten
-                    if (slamBackLeft.canMatch) {
+            // *exclude the start and end of path as they cannot make a sandwich (i.e, check if slamBackToBall is in the middle)
+            if (slamBackToBallIndex > 0 && slamBackToBallIndex < ballGroup.length - 1) {
+                // check for matches once then move up the path slaming every ball to tighten
+                if (slamBackLeft.canMatch) {
+                    // Start recursive check of two balls if they match
+                    if (slamBackLeft.frame === slamBackRight.frame) {
                         // check matches and kill 3-ball matches
-                        ballGroup.getAt(slamBackToBallIndex).canMatch = true;
                         matches = [];
                         matches.push(slamBackToBallIndex);
-                        recursiveBallCheck(ballGroup.getAt(slamBackToBallIndex), matches);
+                        recursiveBallCheck(slamBackLeft, matches);
                         killBalls(matches);
-
-                        // stop any balls being checkable
-                        ballGroup.setAll('canMatch', false);
                     }
-                    // increase slam index WITHOUT checking matches, will tighten path
-
                 }
-//                else {
-//                    slamBackToBallIndex += 1;
-//                }
+                // increase slam index, will tighten path
                 slamBackToBallIndex += 1;
             } else {
                 isSlamEnded = true;
@@ -430,7 +421,7 @@ function recursiveBallCheck(startBall, matchesArray) {
 */
 function killBalls(matchesArray) {
     "use strict";
-    var uniqueMatches, sortedMatches, i, isMiddlePath, killBall;
+    var uniqueMatches, sortedMatches, i, isMiddlePath, killBall, didMatch;
 
     // remove duplicates
     uniqueMatches = matchesArray.filter(function (item, pos, self) {
@@ -449,8 +440,16 @@ function killBalls(matchesArray) {
             killBall.kill();
             score += pointsPerBall;
         }
+        // stop any balls being checkable
+        ballGroup.setAll('canMatch', false);
         // make balls touch/nearly touch to slam back (could be used to slow secondary kills using that collision)
         slamBackToBallIndex = sortedMatches[0] - 1;
+        if (slamBackToBallIndex > -1) {
+            ballGroup.getAt(slamBackToBallIndex).canMatch = true;
+        }
+        didMatch = true;
+    } else {
+        didMatch = false;
     }
 
     // clear array
@@ -458,6 +457,8 @@ function killBalls(matchesArray) {
 
     // ups level if able
     changeLevel();
+
+    return didMatch;
 }
 
 /*
