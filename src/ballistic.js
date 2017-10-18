@@ -55,7 +55,9 @@ var sprite,
     bmd,
     p,
     colors,
-    colorsIndex = 0;
+    colorsIndex = 0,
+    canMovePath = false,
+    isSlamEnded = true;
 
 function create() {
     "use strict";
@@ -124,7 +126,7 @@ function createSpiralPath() {
     "use strict";
     var theta,
         radius = game.world.height / 2,
-        segmentMax = 300,
+        segmentMax = 360,
         segmentCount = 0,
         x,
         y,
@@ -134,12 +136,6 @@ function createSpiralPath() {
         point = {    },
         loops;
 
-//    for (theta = 0; theta <= 360; theta += 1) {
-//        point.x = centerX + (radius * Math.cos(2 * Math.PI * theta / 360));
-//        point.y = centerY + (radius * Math.sin(2 * Math.PI * theta / 360));
-//        path[path.length] = point;
-//        point = [];
-//    }
     for (loops = 0; loops < 2; loops += 1) {
         for (segmentCount = 0; segmentCount < segmentMax; segmentCount += 1) {
             theta = 2.0 * Math.PI * segmentCount / segmentMax;
@@ -147,8 +143,6 @@ function createSpiralPath() {
             y = centerY + radius * Math.sin(theta);
             rotatedX = (Math.cos(rotateRadians) * (x - centerX)) + (Math.sin(rotateRadians) * (y - centerY)) + centerX;
             rotatedY = (Math.cos(rotateRadians) * (y - centerY)) - (Math.sin(rotateRadians) * (x - centerX)) + centerY;
-    //        rotatedX = (x * Math.cos(3 * Math.PI / 2)) + (y * Math.sin(3 * Math.PI / 2));
-    //        rotatedY = (-x * Math.sin(3 * Math.PI / 2)) + (y * Math.cos(3 * Math.PI / 2));
             point.x = rotatedX;
             point.y = rotatedY;
             //rotate 90 clockwise but upside down pixel map so 270 clockwise
@@ -164,9 +158,7 @@ function createSpiralPath() {
 */
 function recursiveSpiral(x, y) {
     "use strict";
-
-//    x += bullet.width;
-    var point = {    };
+    var point = {};
     x += 1;
     point.x = x;
     point.y = y;
@@ -183,7 +175,7 @@ function recursiveSpiral(x, y) {
 */
 function update() {
     "use strict";
-
+    var slamBackLeft, slamBackRight;
     // Command to fire a bullet
     if (game.input.activePointer.isDown) {
         fire();
@@ -212,31 +204,42 @@ function update() {
         ballGroup.setAll('canMatch', false);
 
         isInsertEnded = true;
+        isSlamEnded = false;
     }
 
     // slamBack to fill gaps
-    if (slamBackToBallIndex > 0) {
+    if (!isSlamEnded) { //(slamBackToBallIndex > 0 && isMoveComplete) {
         // overlap means the balls met and gap filled, end the slamBack method
-        if (game.physics.arcade.overlap(ballGroup.getAt(slamBackToBallIndex), ballGroup.getAt(slamBackToBallIndex + 1), collisionHandlerSpiralBalls)) {
+        slamBackLeft = ballGroup.getAt(slamBackToBallIndex);
+        slamBackRight = ballGroup.getAt(slamBackToBallIndex + 1);
+        if (game.physics.arcade.overlap(slamBackLeft, slamBackRight, collisionHandlerSpiralBalls)) {
             // check if the slamBacks trigger another kill
             // check if slamBackToBall is in the middle
             // *exclude the start and end of path as they cannot make a sandwich
             if (slamBackToBallIndex < ballGroup.length - 1) {
                 // Start recursive check of two balls if they match
                 if (ballGroup.getAt(slamBackToBallIndex).frame === ballGroup.getAt(slamBackToBallIndex + 1).frame) {
-                    // check matches and kill 3-ball matches
-                    ballGroup.getAt(slamBackToBallIndex).canMatch = true;
-                    matches = [];
-                    matches.push(slamBackToBallIndex);
-                    recursiveBallCheck(ballGroup.getAt(slamBackToBallIndex), matches);
-                    killBalls(matches);
+                    //check for matches once then move up the path slaming every ball to tighten
+                    if (slamBackLeft.canMatch) {
+                        // check matches and kill 3-ball matches
+                        ballGroup.getAt(slamBackToBallIndex).canMatch = true;
+                        matches = [];
+                        matches.push(slamBackToBallIndex);
+                        recursiveBallCheck(ballGroup.getAt(slamBackToBallIndex), matches);
+                        killBalls(matches);
 
-                    // stop any balls being checkable
-                    ballGroup.setAll('canMatch', false);
-                } else {
-                    slamBackToBallIndex = 0;
+                        // stop any balls being checkable
+                        ballGroup.setAll('canMatch', false);
+                    }
+                    // increase slam index WITHOUT checking matches, will tighten path
+
                 }
+//                else {
+//                    slamBackToBallIndex += 1;
+//                }
+                slamBackToBallIndex += 1;
             } else {
+                isSlamEnded = true;
                 slamBackToBallIndex = 0;
             }
         } else { // if it has yet to overlap AND a kill triggered the slam, keep moving all balls backward on path
@@ -252,9 +255,13 @@ function update() {
 
     // move the path based on the game speed
     checkTimeMS = game.time.totalElapsedSeconds() * 1000;
-    if (checkTimeMS - lastMoveMS >= 1 && isMoveComplete && isInsertEnded) {
+    if (checkTimeMS - lastMoveMS >= 2000) {//} && isMoveComplete && isInsertEnded) {
         // This needs to push the firstmostbal out (and trigger full spiral movement) until it passes the starting line then another ball takes its place
         lastMoveMS = checkTimeMS;
+        canMovePath = true;
+    }
+
+    if (canMovePath) {
         moveBallPath();
     }
 
@@ -485,6 +492,7 @@ function moveBallPath() {
     } else {
         newBall =  createBall(pathBallType, path[0].x, path[0].y, null);
     }
+    canMovePath = false;
 }
 
 function moveSingleBall(ball, spiralChange) {
