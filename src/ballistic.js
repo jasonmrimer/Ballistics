@@ -40,17 +40,22 @@ var sprite,
     slamBackToBallIndex = 0,
     lastMoveMS = 0,
     checkTimeMS,
-    pathSpacer = 16,
+    pathSpacer = 1,
     lastTightenMS = 0,
     tightenIndex = 0,
     tightenComplete = true,
     gameOver = false,
     pathBallType = 0,
-    bulletType = 1;
+    bulletType = 1,
+    finishLine,
+    bmd,
+    p,
+    colors,
+    colorsIndex = 0;
 
 function create() {
     "use strict";
-    var i, pathBall;
+    var i, pathBall, lineGraphics;
     centerX = game.world.centerX;
     centerY = game.world.centerY;
 
@@ -67,6 +72,8 @@ function create() {
 
     createSpiralPath();
 
+
+
     // draw the balls along the path, leave room at end for pushing
     // anchor ball
     // Bullet
@@ -79,6 +86,21 @@ function create() {
     anchorBall.checkWorldBounds = true;
     anchorBall.outOfBoundsKill = true;
 
+    // draw finish line
+
+    finishLine = new Phaser.Line(centerX, centerY, centerX, centerY + 100);
+    colors = Phaser.Color.HSVColorWheel();
+    bmd = game.add.bitmapData(game.width, game.height);
+    bmd.addToWorld();
+    p = new Phaser.Point();
+
+    var graphics = game.add.graphics(finishLine.start.x, finishLine.start.y);//if you have a static line
+    graphics.lineStyle(100, 0xffd900, 1);
+    graphics.moveTo(finishLine.start.x, finishLine.start.y);//moving position of graphic if you draw mulitple lines
+    graphics.lineTo(finishLine.end.x, finishLine.end.y);
+    graphics.endFill();
+
+
     // set ball group characteristics
     ballGroup.enableBody = true;
     ballGroup.physicsBodyType = Phaser.Physics.ARCADE;
@@ -88,7 +110,7 @@ function create() {
     ballGroup.setAll('checkWorldBounds', true);
     ballGroup.setAll('outOfBoundsKill', true);
 
-    for (i = 0; i < path.length / 2; i += pathSpacer) {
+    for (i = 0; i < 50; i += 1) {
         pathBall = createBall(pathBallType, path[i].x, path[i].y, i);
     }
 
@@ -96,14 +118,43 @@ function create() {
 
 function createSpiralPath() {
     "use strict";
-    var theta, radius = 200, point = {    };
+    var theta,
+        radius = game.world.height / 2,
+        segmentMax = 300,
+        segmentCount = 0,
+        x,
+        y,
+        rotatedX,
+        rotatedY,
+        rotateRadians = (Math.PI / 180) * 270,
+        point = {    },
+        loops;
 
-    for (theta = 0; theta <= 1000; theta += 1) {
-        point.x = centerX + (radius * Math.cos(2 * Math.PI * theta / 1000));
-        point.y = centerY + (radius * Math.sin(2 * Math.PI * theta / 1000));
-        path[path.length] = point;
-        point = [];
+//    for (theta = 0; theta <= 360; theta += 1) {
+//        point.x = centerX + (radius * Math.cos(2 * Math.PI * theta / 360));
+//        point.y = centerY + (radius * Math.sin(2 * Math.PI * theta / 360));
+//        path[path.length] = point;
+//        point = [];
+//    }
+    for (loops = 0; loops < 2; loops += 1) {
+        for (segmentCount = 0; segmentCount < segmentMax; segmentCount += 1) {
+            theta = 2.0 * Math.PI * segmentCount / segmentMax;
+            x = centerX + radius * Math.cos(theta);
+            y = centerY + radius * Math.sin(theta);
+            rotatedX = (Math.cos(rotateRadians) * (x - centerX)) + (Math.sin(rotateRadians) * (y - centerY)) + centerX;
+            rotatedY = (Math.cos(rotateRadians) * (y - centerY)) - (Math.sin(rotateRadians) * (x - centerX)) + centerY;
+    //        rotatedX = (x * Math.cos(3 * Math.PI / 2)) + (y * Math.sin(3 * Math.PI / 2));
+    //        rotatedY = (-x * Math.sin(3 * Math.PI / 2)) + (y * Math.cos(3 * Math.PI / 2));
+            point.x = rotatedX;
+            point.y = rotatedY;
+            //rotate 90 clockwise but upside down pixel map so 270 clockwise
+            path[path.length] = point;
+            point = [];
+            radius -= radius / segmentMax;
+        }
     }
+
+
 //    recursiveSpiral(200, centerY - 100);
 //
 //    var spiralRadiusMax = 400;
@@ -171,6 +222,7 @@ function recursiveSpiral(x, y) {
 */
 function update() {
     "use strict";
+
     // Command to fire a bullet
     if (game.input.activePointer.isDown) {
         fire();
@@ -245,6 +297,12 @@ function update() {
         moveBallPath();
     }
 
+    // color line
+    finishLine.random(p);
+    p.floor();
+    bmd.setPixel(p.x, p.y, colors[colorsIndex].r, colors[colorsIndex].g, colors[colorsIndex].b);
+    colorsIndex = game.math.wrapValue(colorsIndex, 1, 359);
+
     if (gameOver) {
         console.log('game over!');
     }
@@ -308,7 +366,7 @@ function collisionHandlerBullets(bulletCheck, ballCheck) {
     }
 
     // add an identifier to the bullet that it is the center of recursive match checks, delete the identifier when complete
-    bulletCheck.canMatch = true;
+//    bulletCheck.canMatch = true;
 }
 
 /*
@@ -404,7 +462,7 @@ function recursiveBallCheck(startBall, matchesArray) {
 */
 function killBalls(matchesArray) {
     "use strict";
-    var uniqueMatches, sortedMatches, i, isMiddlePath;
+    var uniqueMatches, sortedMatches, i, isMiddlePath, killBall;
 
     // remove duplicates
     uniqueMatches = matchesArray.filter(function (item, pos, self) {
@@ -418,8 +476,9 @@ function killBalls(matchesArray) {
     // need to readjust the indeces to remove the correct balls once the indeces change from removing from ballgroup
     if (sortedMatches.length >= 3) {
         for (i = 0; i < sortedMatches.length; i += 1) {
-            ballGroup.getAt(sortedMatches[i] - i).kill();
-            ballGroup.remove(ballGroup.getAt(sortedMatches[i] - i));
+            killBall = ballGroup.getAt(sortedMatches[i] - i);
+            ballGroup.remove(killBall);
+            killBall.kill();
             score += pointsPerBall;
         }
         // make balls touch/nearly touch to slam back (could be used to slow secondary kills using that collision)
@@ -495,14 +554,18 @@ function createBall(type, x, y, spiralIndex) {
         ball.enableBody = true;
         ball.checkWorldBounds = true;
         ball.outOfBoundsKill = true;
+        ball.canMatch = true;
     } else if (type === pathBallType && spiralIndex !== null) { // TODO will be deprecated when I remove the starting ball set for testing; all balls should start at index 0
-        ball = game.add.sprite(x, y, 'bullets', game.rnd.between(3, 5), ballGroup);
+        ball = game.add.sprite(path[spiralIndex].x, path[spiralIndex].y, 'bullets', game.rnd.between(3, 5), ballGroup);
         ball.spiralIndex = spiralIndex;
         ball.anchor.set(0.5);
+        ball.canMatch = false;
     } else if (type === pathBallType && spiralIndex === null) {
-        ball = game.add.sprite(x, y, 'bullets', game.rnd.between(3, 5));
+        spiralIndex = 0;
+        ball = game.add.sprite(path[spiralIndex].x, path[spiralIndex].y, 'bullets', game.rnd.between(3, 5));
         ball.spiralIndex = 0;
         ball.anchor.set(0.5);
+        ball.canMatch = false;
         ballGroup.addAt(ball, 0, false);
     }
 
