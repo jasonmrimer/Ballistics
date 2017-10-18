@@ -7,7 +7,7 @@
 var Phaser, preload, create, update, render, createSpiralPath, recursiveSpiral, movingSpiral,
     update, collisionHandlerBullets, collisionHandlerSpiralBalls, fire, changeLevel, getCurrentLevel,
     moveBallPath, render, console, recursiveSpiralInsert, recursiveBallCheck, killBalls, isMoveComplete,
-    slamBack, slamBackToBallIndex, tightenPath, moveSingleBall, createBall;
+    slamBack, slamBackToBallIndex, tightenPath, moveSingleBall, createBall, graphics;
 
 var game = new Phaser.Game(800, 600, Phaser.CANVAS, 'phaser-example', { preload: preload, create: create, update: update, render: render });
 
@@ -16,7 +16,9 @@ function preload() {
     game.load.image('arrow', 'assets/sprites/arrow.png');
     game.load.image('bullet', 'assets/sprites/purple_ball.png');
     game.load.image('ballType01', 'assets/sprites/blue_ball.png');
-    game.load.spritesheet('bullets', 'assets/sprites/balls.png', 17, 17);
+//    game.load.spritesheet('bullets', 'assets/sprites/balls.png', 17, 17);
+    game.load.spritesheet('bullets', 'assets/sprites/balls_v1.png', 40, 40);
+
 }
 
 var sprite,
@@ -24,6 +26,8 @@ var sprite,
     path = [],              // Holds all points on the spiral in numerical order until I figure out the equation
     bullet,
     anchorBall,
+    anchorBallIndex = 7,    // final transparent ball as anchor
+    ballTopIndex = 2,       // start with ## balls
     ballGroup,
     level = 1,              // Indicates the current level the player is on, increasing difficulty/points
     speed,                  // Velocity around the spiral increases proportional to the level
@@ -77,7 +81,7 @@ function create() {
     // draw the balls along the path, leave room at end for pushing
     // anchor ball
     // Bullet
-    anchorBall = game.add.sprite(path[pathSpacer].x, path[pathSpacer].y, 'bullets', 0);
+    anchorBall = game.add.sprite(path[pathSpacer].x, path[pathSpacer].y, 'bullets', anchorBallIndex);
     anchorBall.anchor.set(0.5);
     game.physics.enable(anchorBall, Phaser.Physics.ARCADE);
     anchorBall.body.immovable = true;
@@ -94,7 +98,7 @@ function create() {
     bmd.addToWorld();
     p = new Phaser.Point();
 
-    var graphics = game.add.graphics(finishLine.start.x, finishLine.start.y);//if you have a static line
+    graphics = game.add.graphics(finishLine.start.x, finishLine.start.y);//if you have a static line
     graphics.lineStyle(100, 0xffd900, 1);
     graphics.moveTo(finishLine.start.x, finishLine.start.y);//moving position of graphic if you draw mulitple lines
     graphics.lineTo(finishLine.end.x, finishLine.end.y);
@@ -110,7 +114,7 @@ function create() {
     ballGroup.setAll('checkWorldBounds', true);
     ballGroup.setAll('outOfBoundsKill', true);
 
-    for (i = 0; i < 50; i += 1) {
+    for (i = 0; i < 10; i += 1) {
         pathBall = createBall(pathBallType, path[i].x, path[i].y, i);
     }
 
@@ -153,49 +157,6 @@ function createSpiralPath() {
             radius -= radius / segmentMax;
         }
     }
-
-
-//    recursiveSpiral(200, centerY - 100);
-//
-//    var spiralRadiusMax = 400;
-//    var spiralNumber = 3;
-//    var spiralBallSpacer = bullet.width / 2;
-//    var spiralRadius = spiralBallSpacer * spiralNumber + 300;
-//
-//    //spirals
-//    for (spiralCount = 0; spiralCount < spiralNumber; spiralCount++) {
-//        for (spiralBallCount = 0; spiralBallCount < spiralBallSpacer; spiralBallCount++) {
-//            var theta = 2.0 * Math.PI * spiralBallCount / spiralBallSpacer; // get current angle
-////            var theta = 2.0 * Math.PI * spiralRadius; // get current angle
-//            var x = spiralRadius * Math.cos(theta);                         // calculate the x component
-//            var y = spiralRadius * Math.sin(theta);                         // calculate the y component
-//            ballGroup.create(x + 400, y + 300, 'bullets', game.rnd.between(0, 5));
-////            console.log('[' + x + ', ' + y + ']/n');
-//            spiralRadius -= spiralRadius / spiralBallSpacer;
-//        }
-//
-//        for (theta = 1080; theta >= 0; theta--) {
-////            var theta = 2.0 * Math.PI * spiralBallCount / spiralBallSpacer; // get current angle
-////            var theta = 2.0 * Math.PI * spiralRadius; // get current angle
-//
-//            var x = spiralRadius * Math.cos(theta);                         // calculate the x component
-//            var y = spiralRadius * Math.sin(theta);                         // calculate the y component
-//            ballGroup.create(x + 400, y + 300, 'bullets', game.rnd.between(0, 5));
-////            console.log('[' + x + ', ' + y + ']/n');
-//            spiralRadius -= spiralRadiusMax / 720;
-//        }
-//
-//
-//    }
-//
-//    for (radius = 300; radius > 0; radius--) {
-//        // equation of a logarithmic spiral in polar: r = a*(e^(b*theta))
-//        var x = Math.acos
-//
-//    }
-//
-//    recursiveSpiral(600, 300);
-//    recursiveSpiral(300)
 }
 
 /*
@@ -546,7 +507,7 @@ function createBall(type, x, y, spiralIndex) {
     "use strict";
     var ball;
     if (type === bulletType) {
-        ball = game.add.sprite(400, 300, 'bullets', game.rnd.between(3, 5));
+        ball = game.add.sprite(400, 300, 'bullets', game.rnd.between(0, ballTopIndex));
         ball.anchor.set(0.5);
         game.physics.enable(ball, Phaser.Physics.ARCADE);
         ball.body.immovable = true;
@@ -556,13 +517,13 @@ function createBall(type, x, y, spiralIndex) {
         ball.outOfBoundsKill = true;
         ball.canMatch = true;
     } else if (type === pathBallType && spiralIndex !== null) { // TODO will be deprecated when I remove the starting ball set for testing; all balls should start at index 0
-        ball = game.add.sprite(path[spiralIndex].x, path[spiralIndex].y, 'bullets', game.rnd.between(3, 5), ballGroup);
+        ball = game.add.sprite(path[spiralIndex].x, path[spiralIndex].y, 'bullets', game.rnd.between(0, ballTopIndex), ballGroup);
         ball.spiralIndex = spiralIndex;
         ball.anchor.set(0.5);
         ball.canMatch = false;
     } else if (type === pathBallType && spiralIndex === null) {
         spiralIndex = 0;
-        ball = game.add.sprite(path[spiralIndex].x, path[spiralIndex].y, 'bullets', game.rnd.between(3, 5));
+        ball = game.add.sprite(path[spiralIndex].x, path[spiralIndex].y, 'bullets', game.rnd.between(0, ballTopIndex));
         ball.spiralIndex = 0;
         ball.anchor.set(0.5);
         ball.canMatch = false;
