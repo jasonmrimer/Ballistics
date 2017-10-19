@@ -5,7 +5,7 @@
 
 // define all functions, avoid JLint errors
 var Phaser, preload, create, update, render, createSpiralPath, recursiveSpiral, movingSpiral,
-    update, collisionHandlerBullets, collisionHandlerSpiralBalls, fire, changeLevel, getCurrentLevel,
+    update, overlapHandlerBullets, overlapHandlerSpiralBalls, fire, changeLevel, getCurrentLevel,
     moveBallPath, render, console, recursiveSpiralInsert, recursiveBallCheck, killBalls, isMoveComplete,
     slamBack, slamBackToBallIndex, tightenPath, moveSingleBall, createBall, graphics;
 
@@ -57,7 +57,8 @@ var sprite,
     colors,
     colorsIndex = 0,
     canMovePath = false,
-    isSlamEnded = true;
+    isSlamEnded = true,
+    radius = 20;
 
 function create() {
     "use strict";
@@ -115,6 +116,7 @@ function create() {
     ballGroup.setAll('enableBody', true);
     ballGroup.setAll('checkWorldBounds', true);
     ballGroup.setAll('outOfBoundsKill', true);
+    ballGroup.setAll('body.setCircle', 20);
 
     for (i = 0; i < 10; i += 1) {
         pathBall = createBall(pathBallType, path[i].x, path[i].y, i);
@@ -144,7 +146,7 @@ function createSpiralPath() {
             rotatedX = (Math.cos(rotateRadians) * (x - centerX)) + (Math.sin(rotateRadians) * (y - centerY)) + centerX;
             rotatedY = (Math.cos(rotateRadians) * (y - centerY)) - (Math.sin(rotateRadians) * (x - centerX)) + centerY;
             point.x = rotatedX;
-            point.y = rotatedY;
+            point.y = rotatedY; //offset from center by half radius
             //rotate 90 clockwise but upside down pixel map so 270 clockwise
             path[path.length] = point;
             point = [];
@@ -182,28 +184,31 @@ function update() {
     }
 
     // Trigger collision handlers for balls that reach the path
-    if (game.physics.arcade.overlap(ballGroup, bullet, collisionHandlerBullets)) {
+    if (game.physics.arcade.overlap(ballGroup, bullet, overlapHandlerBullets)) {
         isInsertEnded = false;
     }
 
     /*
         To allow all movement to finish before checking matches, isMoveComplete
     */
-    if (game.physics.arcade.overlap(ballGroup, ballGroup, collisionHandlerSpiralBalls)) {
-        isMoveComplete = false;
+    if (game.physics.arcade.overlap(ballGroup, ballGroup, overlapHandlerSpiralBalls)) {
+        isMoveComplete = false; // TODO problem is that this does not only trigger when inserting, it also triggers on slams and createBalls
     } else {
         isMoveComplete = true;
     }
-
+//    game.physics.arcade.overlap(ballGroup, ballGroup, overlapHandlerSpiralBalls);
     if (isMoveComplete && !isInsertEnded) {
         // check matches and kill 3-ball matches
-        recursiveBallCheck(ballGroup.getAt(matches[0]), matches);
-        if (killBalls(matches)) {
-            isSlamEnded = false;
-        } else {
-            // stop any balls being checkable
-            ballGroup.setAll('canMatch', false);
+        if (matches.length > 0) {
+            recursiveBallCheck(ballGroup.getAt(matches[0]), matches);
+            if (killBalls(matches)) {
+                isSlamEnded = false;
+            } else {
+                // stop any balls being checkable
+                ballGroup.setAll('canMatch', false);
+            }
         }
+
         isInsertEnded = true;
     }
 
@@ -212,7 +217,7 @@ function update() {
         // overlap means the balls met and gap filled, end the slamBack method
         slamBackLeft = ballGroup.getAt(slamBackToBallIndex);
         slamBackRight = ballGroup.getAt(slamBackToBallIndex + 1);
-        if (game.physics.arcade.overlap(slamBackLeft, slamBackRight, collisionHandlerSpiralBalls)) {
+        if (game.physics.arcade.overlap(slamBackLeft, slamBackRight, overlapHandlerSpiralBalls)) {
             // check if the slamBacks trigger another kill
             // *exclude the start and end of path as they cannot make a sandwich (i.e, check if slamBackToBall is in the middle)
             if (slamBackToBallIndex > 0 && slamBackToBallIndex < ballGroup.length - 1) {
@@ -225,16 +230,18 @@ function update() {
                         matches.push(slamBackToBallIndex);
                         recursiveBallCheck(slamBackLeft, matches);
                         killBalls(matches);
+                        return;
                     }
                 }
                 // increase slam index, will tighten path
                 slamBackToBallIndex += 1;
             } else {
+                //test for gaps TODO
                 isSlamEnded = true;
                 slamBackToBallIndex = 0;
             }
         } else { // if it has yet to overlap AND a kill triggered the slam, keep moving all balls backward on path
-            slamBack(slamBackToBallIndex);
+            moveSingleBall(ballGroup.getAt(slamBackToBallIndex + 1), -1);
         }
     }
 
@@ -246,7 +253,7 @@ function update() {
 
     // move the path based on the game speed
     checkTimeMS = game.time.totalElapsedSeconds() * 1000;
-    if (checkTimeMS - lastMoveMS >= 2000) {//} && isMoveComplete && isInsertEnded) {
+    if (checkTimeMS - lastMoveMS >= 800) {//} && isMoveComplete && isInsertEnded) {
         // This needs to push the firstmostbal out (and trigger full spiral movement) until it passes the starting line then another ball takes its place
         lastMoveMS = checkTimeMS;
         canMovePath = true;
@@ -256,6 +263,7 @@ function update() {
         moveBallPath();
     }
 
+    // TODO final ball seems to error out because it checks for a group.end + 1.canMatch
     // color line
     finishLine.random(p);
     p.floor();
@@ -275,7 +283,7 @@ function update() {
     In both cases the function will smoothly bring the balls into alignment along the path and then determine if the new ball arrangement creates a segment of >= 3 matching balls. If so, it will remove the balls, score the points, and tighten the path.
 
 */
-function collisionHandlerBullets(bulletCheck, ballCheck) {
+function overlapHandlerBullets(bulletCheck, ballCheck) {
     "use strict";
     var bulletTheta, ballTheta;
 
@@ -331,7 +339,7 @@ function collisionHandlerBullets(bulletCheck, ballCheck) {
 /*
     Handles after affects from a bullet collision enabling balls to shift and check whether any 3+ balls match
 */
-function collisionHandlerSpiralBalls(ballA, ballB) {
+function overlapHandlerSpiralBalls(ballA, ballB) {
     "use strict";
     var leftBall, rightBall, newRightIndex;
 
@@ -468,9 +476,7 @@ function slamBack(slamIndex) {
     "use strict";
     var i; //, stbIndex;
     // loop through each ball and decrease its index, it will stop during a collide in update()
-    for (i = (slamIndex + 1); i < ballGroup.length; i += 1) {
-        moveSingleBall(ballGroup.getAt(i), -1);
-    }
+    moveSingleBall(ballGroup.getAt(slamIndex + 1), -1);
 }
 
 function getCurrentLevel(currentScore) {
@@ -498,47 +504,55 @@ function moveBallPath() {
 
 function moveSingleBall(ball, spiralChange) {
     "use strict";
+    var i;
     if ((ball.spiralIndex + spiralChange > -1) && (ball.spiralIndex + spiralChange < path.length)) {
-        ball.spiralIndex = ball.spiralIndex + spiralChange;
+        for (i = ballGroup.getIndex(ball); i < ballGroup.length; i += 1) {
+            ballGroup.getAt(i).spiralIndex = ballGroup.getAt(i).spiralIndex + spiralChange;
+            ballGroup.getAt(i).x = path[ballGroup.getAt(i).spiralIndex].x;
+            ballGroup.getAt(i).y = path[ballGroup.getAt(i).spiralIndex].y;
+        }
     } else if (ball.spiralIndex + spiralChange < 0) {
         ball.spiralIndex = 0;
+        ball.x = path[ball.spiralIndex].x;
+        ball.y = path[ball.spiralIndex].y;
     } else if (ball.spiralIndex + spiralChange > path.length - 1) {
         ball.kill();
         gameOver = true;
         return;
     }
-    ball.x = path[ball.spiralIndex].x;
-    ball.y = path[ball.spiralIndex].y;
+
 
 }
 
 function createBall(type, x, y, spiralIndex) {
     "use strict";
     var ball;
+    ball = game.add.sprite(-100, -100, 'bullets', game.rnd.between(0, ballTopIndex));
+    game.physics.enable(ball, Phaser.Physics.ARCADE);
+    ball.anchor.set(0.5);
+    ball.body.immovable = true;
+    ball.body.allowRotation = false;
+    ball.enableBody = true;
+    ball.checkWorldBounds = true;
+    ball.outOfBoundsKill = true;
+    ball.canMatch = false;
+    ball.body.setCircle(ball.width / 2);
+
     if (type === bulletType) {
-        ball = game.add.sprite(400, 300, 'bullets', game.rnd.between(0, ballTopIndex));
-        ball.anchor.set(0.5);
-        game.physics.enable(ball, Phaser.Physics.ARCADE);
-        ball.body.immovable = true;
-        ball.body.allowRotation = false;
-        ball.enableBody = true;
-        ball.checkWorldBounds = true;
-        ball.outOfBoundsKill = true;
         ball.canMatch = true;
-    } else if (type === pathBallType && spiralIndex !== null) { // TODO will be deprecated when I remove the starting ball set for testing; all balls should start at index 0
-        ball = game.add.sprite(path[spiralIndex].x, path[spiralIndex].y, 'bullets', game.rnd.between(0, ballTopIndex), ballGroup);
+        ball.x = centerX;
+        ball.y = centerY;
+    } else {
+        // TODO will be deprecated when I remove the starting ball set for testing; all balls should start at index 0
+        if (type === pathBallType && spiralIndex === null) {
+            spiralIndex = 0;
+        }
+        ballGroup.addAt(ball, 0, false);
         ball.spiralIndex = spiralIndex;
         ball.anchor.set(0.5);
         ball.canMatch = false;
-    } else if (type === pathBallType && spiralIndex === null) {
-        spiralIndex = 0;
-        ball = game.add.sprite(path[spiralIndex].x, path[spiralIndex].y, 'bullets', game.rnd.between(0, ballTopIndex));
-        ball.spiralIndex = 0;
-        ball.anchor.set(0.5);
-        ball.canMatch = false;
-        ballGroup.addAt(ball, 0, false);
+        moveSingleBall(ball, 0);
     }
-
     return ball;
 }
 
