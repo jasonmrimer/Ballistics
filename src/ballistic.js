@@ -18,7 +18,7 @@ function preload() {
     game.load.image('bullet', 'assets/sprites/purple_ball.png');
     game.load.image('ballType01', 'assets/sprites/blue_ball.png');
 //    game.load.spritesheet('bullets', 'assets/sprites/balls.png', 17, 17);
-    game.load.spritesheet('bullets', 'assets/sprites/balls_v1.png', 40, 40);
+    game.load.spritesheet('bullets', 'assets/sprites/balls_v3.png', 64, 64);
 
 }
 
@@ -59,7 +59,7 @@ var debug = true,
     colorsIndex = 0,
     canMovePath = false,
     isSlamEnded = true,
-    radius = 20,
+    radius = 32,
     isGameOver = false;
 
 function create() {
@@ -187,7 +187,12 @@ function update() {
     // take out all logic and start from scratch... i think canMatch allows me to let the methods operate without kills
     game.physics.arcade.overlap(ballGroup, bullet, overlapHandlerBullets);
     game.physics.arcade.overlap(ballGroup, ballGroup, overlapHandlerSpiralBalls);
-    slamBack(slamBackToBallIndex);
+
+    slamBackToBallIndex = slamBack(slamBackToBallIndex);
+//    if (slamBackToBallIndex > ballGroup.length - 2) { // if at end of spiral then stop by setting to -1
+//        slamBackToBallIndex = -1;
+//    }
+
     checkMatches();
     checkBullet();
     moveBallPath();
@@ -344,6 +349,14 @@ function recursiveBallCheck(startBall, matchesArray) {
     }
 }
 
+function checkMatches() {
+    "use strict";
+    if (matches.length > 0) {
+        recursiveBallCheck(ballGroup.getAt(matches[0]), matches);
+        killBalls(matches);
+    }
+}
+
 /*
     Takes array of indeces and kills the balls that filled it if more than 3
 */
@@ -396,35 +409,35 @@ function slamBack(slamIndex) {
     "use strict";
     var i, slamBackLeft, slamBackRight; //, stbIndex;
      // slamBack to fill gaps
-    if (slamIndex > 0) { //(slamBackToBallIndex > 0 && isMoveComplete) {
+    if (slamIndex > (ballGroup.length - 2)) { // at last ball, stop
+        return -1;
+    }
+    if (slamIndex > 0) { // error if it tries to go back to a -1 index
         // overlap means the balls met and gap filled, end the slamBack method
-        slamBackLeft = ballGroup.getAt(slamBackToBallIndex);
-        slamBackRight = ballGroup.getAt(slamBackToBallIndex + 1);
-        if (game.physics.arcade.overlap(slamBackLeft, slamBackRight)) { //, overlapHandlerSpiralBalls)) {
+        slamBackLeft = ballGroup.getAt(slamIndex);
+        slamBackRight = ballGroup.getAt(slamIndex + 1);
+        if (game.physics.arcade.overlap(slamBackLeft, slamBackRight)) {
             // check if the slamBacks trigger another kill
             // *exclude the start and end of path as they cannot make a sandwich (i.e, check if slamBackToBall is in the middle)
-            if (slamBackToBallIndex > 0 && slamBackToBallIndex < ballGroup.length) {
-                // check for matches once then move up the path slaming every ball to tighten
-                if (slamBackLeft.canMatch) {
-                    // Start recursive check of two balls if they match
-                    if (slamBackLeft.frame === slamBackRight.frame) {
-                        // check matches and kill 3-ball matches
-                        matches = [];
-                        matches.push(slamBackToBallIndex);
-                        recursiveBallCheck(slamBackLeft, matches);
-                        killBalls(matches);
-                        return;
-                    }
+//              if (slamIndex < ballGroup.length) {
+            // check for matches once then move up the path slaming every ball to tighten
+            if (slamBackLeft.canMatch) {
+                // Start recursive check of two balls if they match
+                if (slamBackLeft.frame === slamBackRight.frame) {
+                    // check matches and kill 3-ball matches
+                    matches = [];
+                    matches.push(slamIndex);
+                    recursiveBallCheck(slamBackLeft, matches);
+                    killBalls(matches);
+                    return slamBackToBallIndex;
                 }
-                // increase slam index, will tighten path
-                slamBackToBallIndex += 1;
-            } else {
-                //test for gaps TODO
-//                isSlamEnded = true;
-                slamBackToBallIndex = 0;
             }
-        } else { // if it has yet to overlap AND a kill triggered the slam, keep moving all balls backward on path
-            moveSingleBall(ballGroup.getAt(slamBackToBallIndex + 1), -1);
+            // increase slam index, will tighten path
+            return slamIndex + 1;
+        }
+        else { // if it has yet to overlap AND a kill triggered the slam, keep moving all balls backward on path
+            moveSingleBall(slamBackRight, -1);
+            return slamIndex;
         }
     }
 }
@@ -461,51 +474,39 @@ function moveBallPath() {
 
 function moveSingleBall(ball, spiralChange) {
     "use strict";
-    var i;
+    var i, movingBall;
 
     if (ball.spiralIndex + spiralChange > path.length) {
         ball.kill();
         isGameOver = true;
         return;
-    } else {
-        if (Math.abs(ball.spiralIndex) + spiralChange < 0) {
-            ball.spiralIndex = Math.abs(ball.spiralIndex) - spiralChange;
-        } // TODO this was broekn earlier... trying absolute values or something
-        if (ball.spiralIndex < 0) {
-            ball.spiralIndex = Math.abs(ball.spiralIndex) - spiralChange;
-        }
+    } else if (ball.spiralIndex + spiralChange < 0) {
+//        ball.spiralIndex = Math.abs(ball.spiralIndex);
+//        if (ball.spiralIndex < 0 && spiralChange < 0) {
+//            ball.spiralIndex = Math.abs(ball.spiralIndex) - spiralChange;
+//        }
+//        if (Math.abs(ball.spiralIndex) + spiralChange < 0) {
+//            ball.spiralIndex = Math.abs(ball.spiralIndex) - spiralChange;
+//        } // TODO this was broekn earlier... trying absolute values or something
+//        if (ball.spiralIndex < 0) {
+//            ball.spiralIndex = Math.abs(ball.spiralIndex) - spiralChange;
+//        }
+        return;
     }
 
     for (i = ballGroup.getIndex(ball); i < ballGroup.length; i += 1) {
-        ballGroup.getAt(i).spiralIndex = ballGroup.getAt(i).spiralIndex + spiralChange;
-        ballGroup.getAt(i).x = path[ballGroup.getAt(i).spiralIndex].x;
-        ballGroup.getAt(i).y = path[ballGroup.getAt(i).spiralIndex].y;
+        movingBall = ballGroup.getAt(i);
+        movingBall.spiralIndex = movingBall.spiralIndex + spiralChange;
+        movingBall.x = path[movingBall.spiralIndex].x;
+        movingBall.y = path[movingBall.spiralIndex].y;
     }
 }
-//    if ((ball.spiralIndex + spiralChange > -1) && (ball.spiralIndex + spiralChange < path.length)) {
-//        for (i = ballGroup.getIndex(ball); i < ballGroup.length; i += 1) {
-//            ballGroup.getAt(i).spiralIndex = ballGroup.getAt(i).spiralIndex + spiralChange;
-//            ballGroup.getAt(i).x = path[ballGroup.getAt(i).spiralIndex].x;
-//            ballGroup.getAt(i).y = path[ballGroup.getAt(i).spiralIndex].y;
-//        }
-//    } else if (ball.spiralIndex + spiralChange < 0) {
-//        ball.spiralIndex = 0;
-//        ball.x = path[ball.spiralIndex].x;
-//        ball.y = path[ball.spiralIndex].y;
-//    } else if (ball.spiralIndex + spiralChange > path.length - 1) {
-//        ball.kill();
-//        gameOver = true;
-//        return;
-//    }
-
-
-//}
 
 function createBall(type, x, y, spiralIndex) {
     "use strict";
     var ball;
     ball = game.add.sprite(-100, -100, 'bullets', game.rnd.between(0, ballTopIndex));
-    game.physics.enable(ball, Phaser.Physics.ARCADE);
+    game.physics.arcade.enable(ball);
     ball.anchor.set(0.5);
     ball.body.immovable = true;
     ball.body.allowRotation = false;
@@ -513,7 +514,7 @@ function createBall(type, x, y, spiralIndex) {
     ball.checkWorldBounds = true;
     ball.outOfBoundsKill = true;
     ball.canMatch = false;
-    ball.body.setCircle(ball.width / 2);
+    ball.body.setCircle(radius);
 
     if (type === bulletType) {
         ball.canMatch = true;
@@ -531,14 +532,6 @@ function createBall(type, x, y, spiralIndex) {
         moveSingleBall(ball, 0);
     }
     return ball;
-}
-
-function checkMatches() {
-    "use strict";
-    if (matches.length > 0) {
-        recursiveBallCheck(ballGroup.getAt(matches[0]), matches);
-        killBalls(matches);
-    }
 }
 
 function checkBullet() {
@@ -568,9 +561,9 @@ function gameOver() {
 function render() {
     "use strict";
     game.debug.text('Level: ' + level + ' | Score: ' + score + '| Next Level at: ' + levelThresholds[level - 1], 32, 64);
-    if (debug) {
-        ballGroup.forEach(function (ball) {
-            game.debug.spriteBounds(ball);
-        });
-    }
+//    if (debug) {
+//        ballGroup.forEach(function (ball) {
+//            game.debug.body(ball);
+//        });
+//    }
 }
