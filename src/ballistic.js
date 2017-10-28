@@ -7,8 +7,8 @@
 var Phaser, preload, create, update, render, createSpiralPath, recursiveSpiral, movingSpiral,
     update, overlapHandlerBullets, overlapHandlerSpiralBalls, fire, changeLevel, getCurrentLevel,
     moveBallPath, render, console, recursiveSpiralInsert, recursiveBallCheck, killBalls, isMoveComplete,
-    slamBack, slamBackToBallIndex, tightenPath, moveSingleBall, createBall, graphics, checkBullet, checkMatches,
-    colorLine, gameOver, setGameScale;
+    slamBack, tightenPath, moveSingleBall, createBall, graphics, checkBullet, checkMatches,
+    colorLine, gameOver, setGameScale, isLastBall, isSlammableBall, isFirstBall;
 
 var game = new Phaser.Game(800, 600, Phaser.CANVAS, 'phaser-example', { preload: preload, create: create, update: update, render: render });
 
@@ -39,6 +39,7 @@ var anchorBall,
     radiusScaled = 32,
     radiusSpriteSheet = 32,
     score = 0,              // Total score - sum of pointsPerBall cleared
+    slamBackToBall = null,
     slamBackToBallIndex = 0,
     speed,                  // Velocity around the spiral increases proportional to the level
     sprite,
@@ -46,7 +47,8 @@ var anchorBall,
     tightenComplete = true,
     TYPE_BALL_ANCHOR = 2,
     TYPE_BALL_BULLET = 1,
-    TYPE_BALL_PATH = 0;
+    TYPE_BALL_PATH = 0,
+    checkBall;
 
 function preload() {
     "use strict";
@@ -165,14 +167,16 @@ function update() {
     fire();
     game.physics.arcade.overlap(ballGroup, bullet, overlapHandlerBullets);
     game.physics.arcade.overlap(ballGroup, ballGroup, overlapHandlerSpiralBalls);
-    slamBackToBallIndex = slamBack(slamBackToBallIndex);
+    slamBackToBall = slamBack(slamBackToBall);
+//    slamBack(slamBackToBall);
+
+
     checkMatches();
     checkBullet();
     moveBallPath();
     colorLine();
     changeLevel();
     gameOver();
-
 }
 
 /*
@@ -244,11 +248,14 @@ function overlapHandlerBullets(bulletCheck, ballCheck) {
     }
     bulletCheck.body.moves = false;
     moveSingleBall(bulletCheck, 0);
+//    // add to match array for checking if not already included
+//    if (matches.indexOf(ballGroup.getIndex(bulletCheck)) < 0) {
+//        matches.push(ballGroup.getIndex(bulletCheck));
+//    }
     // add to match array for checking if not already included
-    if (matches.indexOf(ballGroup.getIndex(bulletCheck)) < 0) {
-        matches.push(ballGroup.getIndex(bulletCheck));
+    if (matches.indexOf(bulletCheck) < 0) {
+        matches.push(bulletCheck);
     }
-
     // add an identifier to the bullet that it is the center of recursive match checks, delete the identifier when complete
 //    bulletCheck.canMatch = true;
 }
@@ -306,6 +313,31 @@ function changeLevel() {
 /*
     Check the balls to the "right" and "left" on the spiral and follow for any 3-ball matches then kill & score.
 */
+
+function recursiveSlamBallCheck(matchesArray) {
+    "use strict";
+    matchesArray.forEach(function (ball) {
+        var leftBall, rightBall;
+        if (!isLastBall(ball)) {
+            rightBall = ballGroup.getAt(ballGroup.getIndex(ball) + 1);
+            if (rightBall.frame === ball.frame && matchesArray.indexOf(rightBall) === -1) {
+                rightBall.canMatch = true;
+                matches.push(rightBall);
+                recursiveSlamBallCheck(matches);
+            }
+        }
+
+        if (!isFirstBall(ball)) {
+            leftBall = ballGroup.getAt(ballGroup.getIndex(ball) - 1);
+            if (leftBall.frame === ball.frame && matchesArray.indexOf(leftBall) === -1) {
+                leftBall.canMatch = true;
+                matches.push(leftBall);
+                recursiveSlamBallCheck(matches);
+            }
+        }
+    });
+}
+
 function recursiveBallCheck(startBall, matchesArray) {
     "use strict";
     var startBallIndex = ballGroup.getIndex(startBall),
@@ -323,7 +355,7 @@ function recursiveBallCheck(startBall, matchesArray) {
             // check matching ball type and not already included in matches
             if (startBall.frame === rightBall.frame && matchesArray.indexOf(rightBall) < 0) {
                 rightBall.canMatch = true;
-                matchesArray.push(rightBallIndex);
+                matchesArray.push(rightBall);
                 recursiveBallCheck(rightBall, matchesArray);
             }
         }
@@ -332,9 +364,9 @@ function recursiveBallCheck(startBall, matchesArray) {
         if (leftBallIndex > -1 && leftBallIndex < ballGroup.length) {
             leftBall = ballGroup.getAt(leftBallIndex);
             // check matching ball type and not already included in matches
-            if (startBall.frame === leftBall.frame && matchesArray.indexOf(leftBallIndex) < 0) {
+            if (startBall.frame === leftBall.frame && matchesArray.indexOf(leftBall) < 0) {
                 leftBall.canMatch = true;
-                matchesArray.push(leftBallIndex);
+                matchesArray.push(leftBall);
                 recursiveBallCheck(leftBall, matchesArray);
             }
         }
@@ -344,7 +376,8 @@ function recursiveBallCheck(startBall, matchesArray) {
 function checkMatches() {
     "use strict";
     if (matches.length > 0) {
-        recursiveBallCheck(ballGroup.getAt(matches[0]), matches);
+//        recursiveBallCheck(matches[0], matches);
+        recursiveSlamBallCheck(matches);
         killBalls(matches);
     }
 }
@@ -354,7 +387,7 @@ function checkMatches() {
 */
 function killBalls(matchesArray) {
     "use strict";
-    var uniqueMatches, sortedMatches, i, isMiddlePath, killBall, didMatch;
+    var uniqueMatches, sortedMatches, i, isMiddlePath, killBall, didMatch, tempSlamToIndex, slamToIndex;
 
     // remove duplicates
     uniqueMatches = matchesArray.filter(function (item, pos, self) {
@@ -365,79 +398,103 @@ function killBalls(matchesArray) {
         return a - b;
     });
 
-    // need to readjust the indeces to remove the correct balls once the indeces change from removing from ballgroup
-    if (sortedMatches.length >= 3) {
-        for (i = 0; i < sortedMatches.length; i += 1) {
-            killBall = ballGroup.getAt(sortedMatches[i] - i);
-            ballGroup.remove(killBall);
-            killBall.kill();
-            score += pointsPerBall;
-        }
-        // stop any balls being checkable
-        ballGroup.setAll('canMatch', false);
-        // make balls touch/nearly touch to slam back (could be used to slow secondary kills using that collision)
-        slamBackToBallIndex = sortedMatches[0] - 1;
-        if (slamBackToBallIndex > -1) {
-            ballGroup.getAt(slamBackToBallIndex).canMatch = true;
-        }
-        didMatch = true;
-    } else {
-        didMatch = false;
-    }
-
     // clear array
     matches = [];
 
-    // ups level if able
-    changeLevel();
+    slamToIndex = 0;
 
-    return didMatch;
+    // need to readjust the indeces to remove the correct balls once the indeces change from removing from ballgroup
+    if (sortedMatches.length >= 3) {
+        slamToIndex = ballGroup.length - 1;
+
+        sortedMatches.forEach(function (ball) {
+            tempSlamToIndex = ballGroup.getIndex(ball);
+            if (tempSlamToIndex < slamToIndex) {
+                slamToIndex = tempSlamToIndex;
+            }
+
+            ballGroup.remove(ball);
+            ball.kill();
+
+            score += pointsPerBall;
+
+        });
+
+        slamToIndex -= 1;
+        // stop any balls being checkable
+        ballGroup.setAll('canMatch', false);
+
+        console.log("match slamIndex " + slamToIndex);
+        if (slamToIndex > -1) {
+            slamBackToBall = ballGroup.getAt(slamToIndex);
+            slamBackToBall.canMatch = true;
+        } else {
+            slamBackToBall = null;
+        }
+
+        // make balls touch/nearly touch to slam back (could be used to slow secondary kills using that collision)
+        return slamBackToBall;
+    }
+
+
+//    return slamBackToBall;
 }
 
 /*
     When ball sections "kill" it leaves a gap. This function pulls the balls ahead of the kill zone back toward the beginning of the gap.
 */
-function slamBack(slamIndex) {
+function slamBack(slamBackToBall) {
     "use strict";
-    console.log("slamBack at " + slamIndex);
-    var i, slamBackLeft, slamBackRight; //, stbIndex;
-     // slamBack to fill gaps
-    if (slamIndex > (ballGroup.length - 2)) { // at last ball, stop
-        return -1;
+    if (slamBackToBall === null) {
+        return slamBackToBall;
+    }
+    if (isLastBall(slamBackToBall)) { //slamIndex > (ballGroup.length - 2)) { // at last ball, stop
+        slamBackToBall = null;
+        return slamBackToBall;
     }
 
-    if (slamIndex > 0) { // error if it tries to go back to a -1 index
+    var i, slamToIndex, slamBackLeft, slamBackRight; //, stbIndex;
+     // slamBack to fill gaps
+    console.log("slamBack at " + slamToIndex);
+
+    if (isSlammableBall(slamBackToBall)) { // error if it tries to go back to a -1 index
         // overlap means the balls met and gap filled, end the slamBack method
-        slamBackLeft = ballGroup.getAt(slamIndex);
-        slamBackRight = ballGroup.getAt(slamIndex + 1);
+        slamToIndex = ballGroup.getIndex(slamBackToBall);
+        slamBackLeft = slamBackToBall; //ballGroup.getAt(slamBackToBallIndex - 1);
+        slamBackRight = ballGroup.getAt(slamToIndex + 1);
         if (game.physics.arcade.overlap(slamBackLeft, slamBackRight)) {
             // check if the slamBacks trigger another kill
             // *exclude the start and end of path as they cannot make a sandwich (i.e, check if slamBackToBall is in the middle)
-//              if (slamIndex < ballGroup.length) {
             // check for matches once then move up the path slaming every ball to tighten
+            slamBackToBall = slamBackRight;
+            console.log("slamBack overlap r: " + ballGroup.getIndex(slamBackToBall) + " l: " +
+                       ballGroup.getIndex(slamBackLeft));
             if (slamBackLeft.canMatch) {
                 // Start recursive check of two balls if they match
                 if (slamBackLeft.frame === slamBackRight.frame) {
                     // check matches and kill 3-ball matches
+                    slamBackRight.canMatch = true;
                     matches = [];
-                    matches.push(slamIndex);
-                    recursiveBallCheck(slamBackLeft, matches);
-                    killBalls(matches);
-                    return slamBackToBallIndex;
+                    matches.push(slamBackLeft);
+                    matches.push(slamBackRight);
+//                    recursiveBallCheck(slamBackLeft, matches);
+                    recursiveSlamBallCheck(matches);
+                    slamBackToBall = killBalls(matches);
+//                    killBalls(matches);
                 }
             }
+
+            slamToIndex = ballGroup.getIndex(slamBackToBall);
+            console.log("slamBack at after match " + slamToIndex);
+            return slamBackToBall;
             // increase slam index, will tighten path
-            return slamIndex + 1;
+//            return slamBackToBallIndex + 1;
         }　else { // if it has yet to overlap AND a kill triggered the slam, keep moving all balls backward on path
             moveSingleBall(slamBackRight, -1);
-            return slamIndex;
+            return slamBackToBall;
+//            return slamBackToBallIndex;
         }
     }
-}
-
-function slamBack(slamBackToBall) {
-    "use strict";
-    return slamBack(ballGroup.getIndex(slamBackToBall));
 }
 
 function getCurrentLevel(currentScore) {
@@ -474,6 +531,33 @@ function moveBallPath() {
 
 }
 
+function isFirstBall(ball) {
+    "use strict";
+    if (ballGroup.getIndex(ball) === 0) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+function isLastBall(ball) {
+    "use strict";
+    if (ballGroup.getIndex(ball) === ballGroup.length - 1) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+function isSlammableBall(ball) {
+    "use strict";
+    if (ballGroup.getIndex(ball) > -1 && ballGroup.getIndex(ball) < ballGroup.length - 1) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
 function moveSingleBall(ball, spiralChange) {
     "use strict";
     var i, movingBall;
@@ -507,6 +591,7 @@ function createBall(type, x, y, spiralIndex) {
     ball.canMatch = false;
     radius = ball.width / 2;
     ball.body.setCircle(radius * (radiusSpriteSheet / radiusScaled));
+    ball.anchor.set(0.5);
 
     if (type === TYPE_BALL_BULLET) {
         ball.canMatch = true;
@@ -523,7 +608,6 @@ function createBall(type, x, y, spiralIndex) {
         }
         ballGroup.addAt(ball, 0, false);
         ball.spiralIndex = spiralIndex;
-        ball.anchor.set(0.5);
         ball.canMatch = false;
         moveSingleBall(ball, 0);
     }
