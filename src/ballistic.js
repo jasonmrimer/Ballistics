@@ -131,7 +131,7 @@ function createSpiralPath() {
         y,
         rotatedX,
         rotatedY,
-        rotateRadians = (Math.PI / 180) * 270,
+        rotateRadians = (Math.PI / 180) * 360,
         point = {    },
         loops;
 
@@ -451,7 +451,7 @@ function killBalls(matchesArray) {
             slamBackToBall = ballGroup.getAt(slamToIndex);
             slamBackToBall.canMatch = true;
         } else {
-            slamBackToBall = null;
+            slamBackToBall = anchorBall;
         }
 
         // make balls touch/nearly touch to slam back (could be used to slow secondary kills using that collision)
@@ -475,6 +475,22 @@ function slamBack(slamBackToBall) {
 
     var i, slamToIndex, slamBackLeft, slamBackRight; //, stbIndex;
 
+    if (slamBackToBall === anchorBall) {
+        slamBackLeft = anchorBall;
+        slamBackRight = ballGroup.getAt(0);
+        if (game.physics.arcade.overlap(slamBackLeft, slamBackRight)) {
+            // check if the slamBacks trigger another kill
+            // *exclude the start and end of path as they cannot make a sandwich (i.e, check if slamBackToBall is in the middle)
+            // check for matches once then move up the path slaming every ball to tighten
+            slamBackToBall = slamBackRight;
+            slamToIndex = ballGroup.getIndex(slamBackToBall);
+            return slamBackToBall;
+        } else { // if it has yet to overlap AND a kill triggered the slam, keep moving all balls backward on path
+            moveSingleBall(slamBackRight, -1);
+            return slamBackToBall;
+        }
+
+    }
     // slamBack to fill gaps
     if (isSlammableBall(slamBackToBall)) { // error if it tries to go back to a -1 index
         // overlap means the balls met and gap filled, end the slamBack method
