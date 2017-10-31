@@ -335,21 +335,13 @@ function fire() {
 function changeLevel() {
     "use strict";
     var increaseVal = 1 + levelIncreasePercent / 100;
-    // check score against level threshold array
-//    if (score >= levelThresholds[currentLevel - 1]) {
-//        // increase level
-//        currentLevel += 1;
-//        // increase points per ball
-//        pointsPerBall *= 1.1;
-//        // TODO increase speed
-//    }
 
     if (score >= nextLevelThreshold) {
         currentLevel += 1;
         nextLevelIncrease *= increaseVal;
         nextLevelThreshold += nextLevelIncrease;
         nextLevelThreshold = Math.round(nextLevelThreshold / 1000) * 1000;
-        movementSpeedMS /= increaseVal;
+        movementSpeedMS /= (increaseVal / 2);
         pointsPerBallMaster = pointsPerBallMaster * increaseVal;
         pointsPerBallCurrent = Math.round(pointsPerBallMaster / 50) * 50;
 
@@ -704,7 +696,8 @@ function gameOver() {
 }
 function render() {
     "use strict";
-    var text = game.add.text(radiusScaled * 2, radiusScaled * 2, 'Level: ' + currentLevel + ' | Score: ' + score + '| Next Level at: ' + nextLevelThreshold, { fontSize: '64px', fill: '#fff'});
+//    var text = game.add.text(radiusScaled * 2, radiusScaled * 2, 'Level: ' + currentLevel + ' | Score: ' + score + '| Next Level at: ' + nextLevelThreshold, {fontSize: '64px', fill: '#fff'});
+    game.debug.text('Level: ' + currentLevel + ' | Score: ' + score + '| Next Level at: ' + nextLevelThreshold, radiusScaled * 2, radiusScaled * 2, '#fff', '64px Arial');
     if (debug) {
         ballGroup.forEach(function (ball) {
             game.debug.body(ball);
