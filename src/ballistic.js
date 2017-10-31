@@ -10,7 +10,10 @@ var Phaser, preload, create, update, render, createSpiralPath, recursiveSpiral, 
     slamBack, tightenPath, moveSingleBall, createBall, graphics, checkBullet, checkMatches,
     colorLine, gameOver, setGameScale, isLastBall, isSlammableBall, isFirstBall;
 
-var game = new Phaser.Game(1200, 1200, Phaser.CANVAS, 'phaser-example', { preload: preload, create: create, update: update, render: render });
+var gameWidth = 2400,
+    gameHeight = 2400;
+
+var game = new Phaser.Game(gameWidth, gameHeight, Phaser.CANVAS, 'phaser-example', { preload: preload, create: create, update: update, render: render });
 
 var anchorBall,
     ballGroup,
@@ -25,6 +28,7 @@ var anchorBall,
     colors,
     colorsIndex = 0,
     finishLine,
+    finishLineSprite,
     isGameOver = false,
     lastMoveMS = 0,
     matches = [],
@@ -41,7 +45,7 @@ var anchorBall,
     TYPE_BALL_PATH = 0,
 
     // mutables
-    bulletSpeed = 1000,
+    bulletSpeed = gameHeight / 1.5,
     currentLevel = 1,              // Indicates the current level the player is on, increasing difficulty/points
     debug = false,
     FRAME_ANCHOR = 7,    // final transparent ball as anchor
@@ -92,17 +96,28 @@ function create() {
 
     // draw finish line
 
-    finishLine = new Phaser.Line(centerX, centerY, centerX, centerY + 100);
+//    finishLine = new Phaser.Line(centerX, centerY - radiusScaled, centerX, centerY - radiusScaled * 4, 20);
+    finishLine = new Phaser.Rectangle(centerX - radiusScaled / 4, centerY - radiusScaled * 8, radiusScaled / 2, radiusScaled * 7);
+    finishLineSprite = game.add.sprite(-100, -100, 'bullets', game.rnd.between(0, FRAME_BALL_TYPE_MAX - 1));
+
     colors = Phaser.Color.HSVColorWheel();
+//    bmd = game.add.bitmapData(radiusScaled / 2, radiusScaled * 7);
     bmd = game.add.bitmapData(game.width, game.height);
     bmd.addToWorld();
+    finishLineSprite = game.add.sprite(centerX - radiusScaled / 4, centerY - radiusScaled * 8);
+    finishLineSprite.enableBody = true;
+    finishLineSprite.physicsBodyType = Phaser.Physics.ARCADE;
+    game.physics.arcade.enable(finishLineSprite);
+    finishLineSprite.checkWorldBounds = true;
+    finishLineSprite.outOfBoundsKill = true;
+//    bmd.line(centerX, centerY - radiusScaled, centerX, centerY - radiusScaled * 4, 20);
     p = new Phaser.Point();
 
-    graphics = game.add.graphics(finishLine.start.x, finishLine.start.y);//if you have a static line
-    graphics.lineStyle(100, 0xffd900, 1);
-    graphics.moveTo(finishLine.start.x, finishLine.start.y);//moving position of graphic if you draw mulitple lines
-    graphics.lineTo(finishLine.end.x, finishLine.end.y);
-    graphics.endFill();
+//    graphics = game.add.graphics(finishLine.start.x, finishLine.start.y);//if you have a static line
+//    graphics.lineStyle(100, 0xffd900, 100);
+//    graphics.moveTo(finishLine.start.x, finishLine.start.y);//moving position of graphic if you draw mulitple lines
+//    graphics.lineTo(finishLine.end.x, finishLine.end.y);
+//    graphics.endFill();
 
 
     // set ball group characteristics
@@ -134,6 +149,23 @@ function createSpiralPath() {
         rotateRadians = (Math.PI / 180) * 360,
         point = {    },
         loops;
+
+    for (loops = 0; loops < 2; loops += 1) {
+        for (segmentCount = 0; segmentCount < segmentMax; segmentCount += 1) {
+//            theta = 2.0 * Math.PI * segmentCount / segmentMax;
+            theta = 2.0 * Math.PI * segmentCount / segmentMax;
+            x = centerX + radius * Math.cos(theta);
+            y = centerY + radius * Math.sin(theta);
+            rotatedX = (Math.cos(rotateRadians) * (x - centerX)) + (Math.sin(rotateRadians) * (y - centerY)) + centerX;
+            rotatedY = (Math.cos(rotateRadians) * (y - centerY)) - (Math.sin(rotateRadians) * (x - centerX)) + centerY;
+            point.x = rotatedX;
+            point.y = rotatedY; //offset from center by half radius
+            //rotate 90 clockwise but upside down pixel map so 270 clockwise
+            path[path.length] = point;
+            point = [];
+            radius -= radius / segmentMax / 2;
+        }
+    }
 
     for (loops = 0; loops < 2; loops += 1) {
         for (segmentCount = 0; segmentCount < segmentMax; segmentCount += 1) {
@@ -177,6 +209,7 @@ function update() {
     fire();
     game.physics.arcade.overlap(ballGroup, bullet, overlapHandlerBullets);
     game.physics.arcade.overlap(ballGroup, ballGroup, overlapHandlerSpiralBalls);
+    game.physics.arcade.collide(ballGroup, finishLineSprite, gameOver);
     slamBackToBall = slamBack(slamBackToBall);
 
     checkMatches();
@@ -184,7 +217,6 @@ function update() {
     moveBallPath();
     colorLine();
     changeLevel();
-    gameOver();
 }
 
 /*
@@ -215,7 +247,6 @@ function setGameScale() {
 function overlapHandlerBullets(bulletCheck, ballCheck) {
     "use strict";
     var bulletTheta, ballTheta;
-
     /*
         Adds the bullet to the spiral path ball group base on whether it is to the right/left of the ball with which it collides.
         Determine the quadrant of the ball first then compare the bullet's position on impact to figure if right/left and at what
@@ -322,11 +353,13 @@ function changeLevel() {
         pointsPerBallMaster = pointsPerBallMaster * increaseVal;
         pointsPerBallCurrent = Math.round(pointsPerBallMaster / 50) * 50;
 
-        if (currentLevel === 5) {
+        if (currentLevel === 4) {
+            FRAME_BALL_TYPE_MAX += 1;
+        } else if (currentLevel === 7) {
             FRAME_BALL_TYPE_MAX += 1;
         } else if (currentLevel === 10) {
             FRAME_BALL_TYPE_MAX += 1;
-        } else if (currentLevel === 15) {
+        } else if (currentLevel === 13) {
             FRAME_BALL_TYPE_MAX += 1;
         }
     }
@@ -663,13 +696,15 @@ function colorLine() {
 function gameOver() {
     "use strict";
     // TODO End game
-    if (isGameOver) {
-        console.log('game over!');
-    }
+    var gameOverText;
+    gameOverText = game.add.text(game.width / 2, game.height * 0.25, 'GAME OVER!', {font: '30px Arial', fill: '#fff'});
+    gameOverText.anchor.setTo(0.5, 0.5);
+
+    game.paused = true;
 }
 function render() {
     "use strict";
-    game.debug.text('Level: ' + currentLevel + ' | Score: ' + score + '| Next Level at: ' + nextLevelThreshold, 32, 64);
+    var text = game.add.text(radiusScaled * 2, radiusScaled * 2, 'Level: ' + currentLevel + ' | Score: ' + score + '| Next Level at: ' + nextLevelThreshold, { fontSize: '64px', fill: '#fff'});
     if (debug) {
         ballGroup.forEach(function (ball) {
             game.debug.body(ball);
