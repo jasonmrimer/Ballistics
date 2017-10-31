@@ -19,6 +19,7 @@ var anchorBall,
     ballGroup,
     bmd,
     bullet,
+    bulletGroup,
     canMovePath = false,
     canvasSquareSize,
     centerX,
@@ -83,13 +84,15 @@ function create() {
     game.stage.backgroundColor = '#313131';
 
 
+    // Balls
+    ballGroup = game.add.physicsGroup();
+    bulletGroup = game.add.physicsGroup();
+
+    createSpiralPath();
+
     // Bullet
     bullet = createBall(TYPE_BALL_BULLET);
 
-    // Balls
-    ballGroup = game.add.physicsGroup();
-
-    createSpiralPath();
 
 
     anchorBall = createBall(TYPE_BALL_ANCHOR, path[pathSpacer].x, path[pathSpacer].y);
@@ -128,11 +131,14 @@ function create() {
     ballGroup.setAll('enableBody', true);
     ballGroup.setAll('checkWorldBounds', true);
     ballGroup.setAll('outOfBoundsKill', true);
-
-
-//    for (i = 0; i < 10; i += 1) {
-//        pathBall = createBall(TYPE_BALL_PATH, path[i].x, path[i].y, i);
-//    }
+    // set ball group characteristics
+    bulletGroup.enableBody = true;
+    bulletGroup.physicsBodyType = Phaser.Physics.ARCADE;
+    bulletGroup.setAll('body.immovable', true);
+    bulletGroup.setAll('body.allowRotation', true);
+    bulletGroup.setAll('enableBody', true);
+    bulletGroup.setAll('checkWorldBounds', true);
+    bulletGroup.setAll('outOfBoundsKill', true);
 
 }
 
@@ -207,7 +213,8 @@ function recursiveSpiral(x, y) {
 function update() {
     "use strict";
     fire();
-    game.physics.arcade.overlap(ballGroup, bullet, overlapHandlerBullets);
+//    game.physics.arcade.overlap(ballGroup, bullet, overlapHandlerBullets);
+    game.physics.arcade.overlap(ballGroup, bulletGroup, overlapHandlerBullets);
     game.physics.arcade.overlap(ballGroup, ballGroup, overlapHandlerSpiralBalls);
     game.physics.arcade.collide(ballGroup, finishLineSprite, gameOver);
     slamBackToBall = slamBack(slamBackToBall);
@@ -278,6 +285,7 @@ function overlapHandlerBullets(bulletCheck, ballCheck) {
         // add bullet to the group before the ball check
         // exception for first position
         ballGroup.addAt(bulletCheck, ballGroup.getIndex(ballCheck), false);
+        bulletGroup.remove(bulletCheck);
         bulletCheck.spiralIndex = ballGroup.getAt(ballGroup.getIndex(ballCheck)).spiralIndex;   // only give a spiral index when the left ball; otherwise, let the ball collision handler assign spiral indeces to the bullet when it is on the right
     // right
     } else {
@@ -326,6 +334,7 @@ function fire() {
     "use strict";
     if (game.input.activePointer.isDown) {
         game.physics.arcade.moveToPointer(bullet, bulletSpeed);
+//        bullet = createBall(TYPE_BALL_BULLET);
     }
 }
 
@@ -341,7 +350,7 @@ function changeLevel() {
         nextLevelIncrease *= increaseVal;
         nextLevelThreshold += nextLevelIncrease;
         nextLevelThreshold = Math.round(nextLevelThreshold / 1000) * 1000;
-        movementSpeedMS /= (increaseVal / 2);
+        movementSpeedMS /= increaseVal;
         pointsPerBallMaster = pointsPerBallMaster * increaseVal;
         pointsPerBallCurrent = Math.round(pointsPerBallMaster / 50) * 50;
 
@@ -651,6 +660,7 @@ function createBall(type, x, y, spiralIndex) {
         ball.canMatch = true;
         ball.x = centerX;
         ball.y = centerY;
+        bulletGroup.addAt(ball, 0, false);
     } else if (type === TYPE_BALL_ANCHOR) {
         ball.frame = FRAME_ANCHOR;
         ball.x = x;
@@ -678,7 +688,6 @@ function checkBullet() {
 
 function colorLine() {
     "use strict";
-    // color line
     finishLine.random(p);
     p.floor();
     bmd.setPixel(p.x, p.y, colors[colorsIndex].r, colors[colorsIndex].g, colors[colorsIndex].b);
