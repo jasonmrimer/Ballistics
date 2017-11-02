@@ -19,6 +19,8 @@ var anchorBall,
     ballGroup,
     bmd,
     bullet,
+    bulletGroup,
+    canFire = true,
     canMovePath = false,
     canvasSquareSize,
     centerX,
@@ -83,13 +85,15 @@ function create() {
     game.stage.backgroundColor = '#313131';
 
 
-    // Bullet
-    bullet = createBall(TYPE_BALL_BULLET);
 
     // Balls
     ballGroup = game.add.physicsGroup();
+    bulletGroup = game.add.physicsGroup();
 
     createSpiralPath();
+
+    // Bullet
+    bullet = createBall(TYPE_BALL_BULLET);
 
 
     anchorBall = createBall(TYPE_BALL_ANCHOR, path[pathSpacer].x, path[pathSpacer].y);
@@ -207,7 +211,8 @@ function recursiveSpiral(x, y) {
 function update() {
     "use strict";
     fire();
-    game.physics.arcade.overlap(ballGroup, bullet, overlapHandlerBullets);
+//    game.physics.arcade.overlap(ballGroup, bullet, overlapHandlerBullets);
+    game.physics.arcade.overlap(bulletGroup, ballGroup, overlapHandlerBullets);
     game.physics.arcade.overlap(ballGroup, ballGroup, overlapHandlerSpiralBalls);
     game.physics.arcade.collide(ballGroup, finishLineSprite, gameOver);
     slamBackToBall = slamBack(slamBackToBall);
@@ -324,8 +329,10 @@ function overlapHandlerSpiralBalls(ballA, ballB) {
 */
 function fire() {
     "use strict";
-    if (game.input.activePointer.isDown) {
+    if (game.input.activePointer.isDown && canFire) {
+        canFire = false;
         game.physics.arcade.moveToPointer(bullet, bulletSpeed);
+//        bullet = createBall(TYPE_BALL_BULLET);
     }
 }
 
@@ -341,7 +348,7 @@ function changeLevel() {
         nextLevelIncrease *= increaseVal;
         nextLevelThreshold += nextLevelIncrease;
         nextLevelThreshold = Math.round(nextLevelThreshold / 1000) * 1000;
-        movementSpeedMS /= (increaseVal / 2);
+        movementSpeedMS /= increaseVal;
         pointsPerBallMaster = pointsPerBallMaster * increaseVal;
         pointsPerBallCurrent = Math.round(pointsPerBallMaster / 50) * 50;
 
@@ -471,7 +478,6 @@ function killBalls(matchesArray) {
         // stop any balls being checkable
         ballGroup.setAll('canMatch', false);
 
-        console.log("match slamIndex " + slamToIndex);
         if (slamToIndex > -1) {
             slamBackToBall = ballGroup.getAt(slamToIndex);
             slamBackToBall.canMatch = true;
@@ -526,7 +532,8 @@ function slamBack(slamBackToBall) {
             // check if the slamBacks trigger another kill
             // *exclude the start and end of path as they cannot make a sandwich (i.e, check if slamBackToBall is in the middle)
             // check for matches once then move up the path slaming every ball to tighten
-            slamBackToBall = slamBackRight;
+//            slamBackToBall = slamBackRight;
+            slamBackToBall = null;
 
             if (slamBackLeft.canMatch) {
                 // Start recursive check of two balls if they match
@@ -541,7 +548,7 @@ function slamBack(slamBackToBall) {
                 }
             }
 
-            slamToIndex = ballGroup.getIndex(slamBackToBall);
+//            slamToIndex = ballGroup.getIndex(slamBackToBall);
             return slamBackToBall;
             // increase slam index, will tighten path
         }　else { // if it has yet to overlap AND a kill triggered the slam, keep moving all balls backward on path
@@ -651,6 +658,7 @@ function createBall(type, x, y, spiralIndex) {
         ball.canMatch = true;
         ball.x = centerX;
         ball.y = centerY;
+        bulletGroup.add(ball);
     } else if (type === TYPE_BALL_ANCHOR) {
         ball.frame = FRAME_ANCHOR;
         ball.x = x;
@@ -671,9 +679,13 @@ function createBall(type, x, y, spiralIndex) {
 function checkBullet() {
     "use strict";
     // Ready a new bullet once the other is either out of the screen or added to the ball group
-    if (!bullet.alive || ballGroup.contains(bullet)) {
+    if (!game.physics.arcade.overlap(bulletGroup, bulletGroup)) {
         bullet = createBall(TYPE_BALL_BULLET);
+        canFire = true;
     }
+//    if (!bullet.alive || ballGroup.contains(bullet)) {
+//        bullet = createBall(TYPE_BALL_BULLET);
+//    }
 }
 
 function colorLine() {
