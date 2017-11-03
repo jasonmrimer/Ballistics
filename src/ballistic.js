@@ -32,6 +32,7 @@ var anchorBall,
     finishLine,
     finishLineSprite,
     isGameOver = false,
+    lastFireMS = 0,
     lastMoveMS = 0,
     matches = [],
     p,
@@ -50,6 +51,7 @@ var anchorBall,
     bulletSpeed = gameHeight / 1.5,
     currentLevel = 1,              // Indicates the current level the player is on, increasing difficulty/points
     debug = false,
+    fireRateMS = 200,
     FRAME_ANCHOR = 7,    // final transparent ball as anchor
     FRAME_BALL_TYPE_MAX = 3,           // Start with a small number of ball types and increase with level
     levelIncreasePercent = 10,
@@ -324,17 +326,7 @@ function overlapHandlerSpiralBalls(ballA, ballB) {
     moveSingleBall(rightBall, 1);
 }
 
-/*
-    Shoots a ball at the cursor (TODO needs to be a right/left push to a dotted line instead of at cursor)
-*/
-function fire() {
-    "use strict";
-    if (game.input.activePointer.isDown && canFire) {
-        canFire = false;
-        game.physics.arcade.moveToPointer(bullet, bulletSpeed);
-//        bullet = createBall(TYPE_BALL_BULLET);
-    }
-}
+
 
 /*
     Ups the level and increases speed, points, & ball types.
@@ -676,13 +668,37 @@ function createBall(type, x, y, spiralIndex) {
     return ball;
 }
 
+/*
+    Shoots a ball at the cursor (TODO needs to be a right/left push to a dotted line instead of at cursor)
+*/
+function fire() {
+    "use strict";
+    if (game.input.activePointer.isDown && canFire) {
+        lastFireMS = game.time.totalElapsedSeconds() * 1000;
+        canFire = false;
+        game.physics.arcade.moveToPointer(bullet, bulletSpeed);
+        bullet = createBall(TYPE_BALL_BULLET);
+    }
+}
+
 function checkBullet() {
     "use strict";
+    var checkFireMS;
     // Ready a new bullet once the other is either out of the screen or added to the ball group
-    if (!game.physics.arcade.overlap(bulletGroup, bulletGroup)) {
-        bullet = createBall(TYPE_BALL_BULLET);
+//    if (!game.physics.arcade.overlap(bulletGroup, bulletGroup)) {
+//        bullet = createBall(TYPE_BALL_BULLET);
+////        canFire = true;
+//    }
+
+    checkFireMS = game.time.totalElapsedSeconds() * 1000;
+
+    if (checkFireMS - lastFireMS >= fireRateMS) {//} && isMoveComplete && isInsertEnded) {
+        // This needs to push the firstmostbal out (and trigger full spiral movement) until it passes the starting line then another ball takes its place
+//        lastMoveMS = checkTimeMS;
+
         canFire = true;
     }
+
 //    if (!bullet.alive || ballGroup.contains(bullet)) {
 //        bullet = createBall(TYPE_BALL_BULLET);
 //    }
